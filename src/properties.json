@@ -1,0 +1,6 @@
+{
+  "NUM_NODES": 3,
+  "NODE_IPS": ["172.31.2.38", "172.31.8.44", "172.31.4.7"],
+  "DHT_NUM_THREADS": 1,
+  "DHT_NUM_BUCKETS": 10
+}

@@ -1,0 +1,26 @@
+[package]
+name = "DistributedHashTable"
+version = "0.1.0"
+authors = ["Daniel Yu <danyu999@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Binary files
+[[bin]]
+name = "clientApplication"
+path = "src/client/clientApplication.rs"
+
+[[bin]]
+name = "DHTserver"
+path = "src/server/DHTserver.rs"
+
+
+# Libraries
+[lib]
+name = "mylib"
+path = "src/lib.rs"
