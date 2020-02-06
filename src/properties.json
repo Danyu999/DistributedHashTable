@@ -1,6 +1,6 @@
 {
-  "NUM_NODES": 3,
-  "NODE_IPS": ["172.31.2.38", "172.31.8.44", "172.31.4.7"],
-  "DHT_NUM_THREADS": 1,
-  "DHT_NUM_BUCKETS": 10
+  "node_ips": ["127.0.0.0"],
+  "server_port": 3333,
+  "dht_num_threads": 1,
+  "dht_num_buckets": 10
 }

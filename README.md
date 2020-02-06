@@ -23,6 +23,11 @@ as a parameter to another function to be called later).
 May attempt again in the future once I understand Rust more.
 
 * Previous attempts for socket communication involved byte by byte transmission and handling.
-Found out the serde library has support for serializing/deserializing for a tcp stream. Will try using this.
+Found out the serde library has support for serializing/deserializing for a tcp stream. Will use this.
 
-*
+* Created enum types for RequestMessages and BarrierMessages to serialize/deserialize to. Starting working on 
+implementing the distributed barrier. Initial assumptions about port listening/connecting/sending was wrong.
+Attempted to first send "ready" messages to all processes on the network, and then listen to receive said messages,
+count the number of messages, then send an "all ready" message when the number of ready messages match the number 
+of processes. However, sending a message requires connecting to each process, and if each process is sending first,
+each process ends up waiting forever :(.

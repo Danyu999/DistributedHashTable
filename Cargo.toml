@@ -12,12 +12,12 @@ serde_json = "1.0"
 
 # Binary files
 [[bin]]
-name = "clientApplication"
-path = "src/client/clientApplication.rs"
+name = "client_application"
+path = "src/client/client_application.rs"
 
 [[bin]]
-name = "DHTserver"
-path = "src/server/DHTserver.rs"
+name = "dht_server"
+path = "src/server/dht_server.rs"
 
 
 # Libraries

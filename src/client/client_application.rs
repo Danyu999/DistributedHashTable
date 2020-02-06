@@ -1,8 +1,15 @@
 use std::net::{TcpStream};
 use std::io::{Read, Write};
 use std::str::from_utf8;
+use mylib::common::properties::{Properties, get_properties};
 
 fn main() {
+    let properties: Properties = get_properties();
+    //TODO: implement distributed barrier
+
+
+
+
     match TcpStream::connect("localhost:3333") {
         Ok(mut stream) => {
             println!("Successfully connected to server in port 3333");
