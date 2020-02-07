@@ -77,7 +77,6 @@ fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, ms
             Err(e) => { println!("Error: {}", e); i += 1;}
         }
     }
-    println!("Done broadcasting!");
     return true;
 }
 
@@ -86,19 +85,20 @@ fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, ms
 * Returns true if everything is up and running, false if an error occurs
 **/
 pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, is_server: bool) -> bool {
-    let sync_server_port = Arc::new(server_port.clone());
-    let sync_node_ips = Arc::new(node_ips.clone());
+
 
     //listen and count the number of ready messages received
-    let port: String;
-    if is_server { port = sync_server_port.to_string() } else { port = (server_port + 1).to_string()} //differentiate between clients and servers
-    let listener = TcpListener::bind("0.0.0.0:".to_string() + &port).unwrap();
+    let port: u64;
+    if is_server { port = *server_port; } else { port = server_port + 1; } //differentiate between clients and servers
+    let sync_port = Arc::new(port.clone());
+    let sync_node_ips = Arc::new(node_ips.clone());
+    let listener = TcpListener::bind("0.0.0.0:".to_string() + &port.to_string()).unwrap();
     println!("Process listening for barrier msgs on port {}", &port);
     let mut num_ready = 0;
     let mut num_all_ready = 0;
 
     //send out ready messages to all processes on the network
-    let server_port_copy = Arc::clone(&sync_server_port);
+    let server_port_copy = Arc::clone(&sync_port);
     let node_ips_copy = Arc::clone(&sync_node_ips);
     thread::spawn(move || { broadcast_all_barrier_message(&server_port_copy, &node_ips_copy, BarrierMessage::OneReady) });
 
@@ -115,7 +115,7 @@ pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, 
                                 //if we have received a ready from each process in the network, we send an all ready signal
                                 if num_ready == sync_node_ips.len() {
                                     println!("Received everybody is ready!");
-                                    let server_port_copy = Arc::clone(&sync_server_port);
+                                    let server_port_copy = Arc::clone(&sync_port);
                                     let node_ips_copy = Arc::clone(&sync_node_ips);
                                     thread::spawn(move || { broadcast_all_barrier_message(&server_port_copy, &node_ips_copy, BarrierMessage::AllReady) });
                                 }
@@ -125,7 +125,7 @@ pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, 
                                 num_all_ready += 1;
                                 if num_all_ready == sync_node_ips.len() {
                                     println!("Received everybody is all ready!");
-                                    break;
+                                    return true;
                                 }
                             }
                         }
@@ -136,5 +136,5 @@ pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, 
             Err(e) => { println!("Error connecting to a process: {}", e); return false; }
         }
     }
-    return true;
+    return false;
 }

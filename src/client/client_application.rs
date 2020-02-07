@@ -21,50 +21,62 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage
     return requests;
 }
 
-fn get_server_streams(mut node_ips: Vec<Ipv4Addr>, server_port: u64) -> Vec<TcpStream>{
-    let mut streams: Vec<TcpStream> = Vec::new();
-    while !node_ips.is_empty() {
-        let ip = node_ips.pop().unwrap();
-        match TcpStream::connect(ip.to_string() + &server_port.to_string()) {
-            Ok(stream) => {
-                streams.push(stream);
-            }
-            Err(e) => {
-                println!("Failed to connect: {}. Retrying...", e);
-                node_ips.push(ip);
-            }
-        }
-    }
-    return streams;
-}
+
+////Currently unused. Can be useful if the server has a thread dedicated to each client connection.
+//fn get_server_streams(mut node_ips: Vec<Ipv4Addr>, server_port: u64) -> Vec<TcpStream>{
+//    let mut streams: Vec<TcpStream> = Vec::new();
+//    while !node_ips.is_empty() {
+//        let ip = node_ips.pop().unwrap();
+//        match TcpStream::connect(ip.to_string() + &server_port.to_string()) {
+//            Ok(stream) => {
+//                streams.push(stream);
+//            }
+//            Err(e) => {
+//                println!("Failed to connect: {}. Retrying...", e);
+//                node_ips.push(ip);
+//            }
+//        }
+//    }
+//    return streams;
+//}
 
 fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_port: u64) -> bool {
     //TODO: create streams for all nodes, instead of remaking connections all the time (is this a good idea?)
     let num_nodes = node_ips.len();
-    let node_streams = get_server_streams(node_ips, server_port);
-    println!("Sending requests...");
+    //let node_streams = get_server_streams(node_ips, server_port);
     while !requests.is_empty() {
         let request = requests.pop().unwrap();
         let which_node: usize = get_key_from_dht_message(&request) as usize % num_nodes; //mods the key by the number of nodes
 
-        // send request
-        serde_json::to_writer(&node_streams[which_node], &request).unwrap();
+        loop { //keeps retrying until the message goes through successfully
+            println!("Connecting to {}", node_ips[which_node].to_string() + ":" + &server_port.to_string());
+            match TcpStream::connect(node_ips[which_node].to_string() + ":" + &server_port.to_string()) {
+                Ok(stream) => {
+                    // send request
+                    //serde_json::to_writer(&node_streams[which_node], &request).unwrap();
+                    serde_json::to_writer(&stream, &request).unwrap();
 
-        // wait for and receive response from server
-        match read_request_message_from_stream(&node_streams[which_node]) {
-            Ok(response) => {
-                match response {
-                    DHTMessage::Response(success) => {
-                        if !success {
-                            // Got a negative response, so we try the same request again
-                            requests.push(request);
+                    // wait for and receive response from server
+                    match read_request_message_from_stream(&stream/*&node_streams[which_node]*/) {
+                        Ok(response) => {
+                            match response {
+                                DHTMessage::Response(success) => {
+                                    if !success {
+                                        // Got a negative response, so we try the same request again
+                                        requests.push(request);
+                                    }
+                                }
+                                _ => { println!("Unexpected response from server. Expected DHTMessage::Response"); }
+                            }
+
                         }
+                        Err(e) => { println!("Error reading response: {}", e); return false; }
                     }
-                    _ => { println!("Unexpected response from server. Expected DHTMessage::Response"); }
-                }
 
+                    break;
+                }
+                Err(e) => { println!("Failed to connect: {}. Retrying...", e); }
             }
-            Err(e) => { println!("Error reading response: {}", e); return false; }
         }
     }
     return true;
@@ -72,7 +84,6 @@ fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_
 
 fn main() {
     let properties: Properties = get_properties();
-    //TODO: create a thread pool to be used for confirm_distributed_barrier and accept_client
     if !confirm_distributed_barrier(&properties.server_port, &properties.node_ips, false) {
         panic!("Distributed barrier for client failed!");
     }
@@ -81,6 +92,7 @@ fn main() {
     let requests = generate_requests(&properties.num_requests, &properties.key_range);
 
     // Make requests to the appropriate server
+    println!("Sending requests...");
     send_requests(requests, properties.node_ips, properties.server_port);
     println!("Client terminated.");
 }

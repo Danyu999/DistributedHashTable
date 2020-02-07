@@ -38,4 +38,11 @@ and allready messages. Another thread attempts to send ready messages to all nod
 retrying until it has sent one message to each node. Once the number of ready messages received matches the number of nodes, broadcast
 an allready message. The program continues when it has received as many allready messages as there are processes.
 
-* Tested program on aws instance successfully. The distributed barrier appears to be working for a single process. 
+* Tested program on aws instance successfully. The distributed barrier appears to be working for a single process.
+
+* Finished initial attempt at client application. It generates the requests based off of the properties file, and sends them to the respective
+server one by one, retrying if necessary until it has sent all requests.
+
+* Currently unsure whether it is better to have a persistent connection between each client and server, or only make the connections as needed.
+Implemented both versions (unsure if they work), but currently moving forward with remaking connections as needed because the server is currently
+not written to accept multiple persistent connections.

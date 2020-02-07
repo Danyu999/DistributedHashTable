@@ -10,7 +10,8 @@ pub fn handle_client(stream: TcpStream, server_port: &u64, node_ips: &Vec<Ipv4Ad
     println!("Server port: {}", &server_port);
     println!("First node ip: {}", &node_ips[0]);
     //TODO: Need to do something with the hashtable based on the msg
-
+    let request = DHTMessage::Response(true);
+    serde_json::to_writer(&stream, &request).unwrap();
 }
 
 pub fn accept_client(server_port: &u64, node_ips: &Vec<Ipv4Addr>, hashtable: &mut Hashtable<String>) {
@@ -21,8 +22,8 @@ pub fn accept_client(server_port: &u64, node_ips: &Vec<Ipv4Addr>, hashtable: &mu
         println!("Connection accepted! Handling...");
         match stream {
             Ok(stream) => {
-                match read_request_message_from_stream(&stream) { //TODO: possible error because we don't multithread and client doesn't close connections
-                    Ok(msg) => { handle_client(stream, &server_port, &node_ips, hashtable, msg); }
+                match read_request_message_from_stream(&stream) {
+                    Ok(msg) => { handle_client(stream, &server_port, &node_ips, hashtable, msg); println!("Done handling, listening again...") }
                     Err(e) => { println!("Error: {}", e); }
                 }
             }
