@@ -30,4 +30,9 @@ implementing the distributed barrier. Initial assumptions about port listening/c
 Attempted to first send "ready" messages to all processes on the network, and then listen to receive said messages,
 count the number of messages, then send an "all ready" message when the number of ready messages match the number 
 of processes. However, sending a message requires connecting to each process, and if each process is sending first,
-each process ends up waiting forever :(.
+each process ends up waiting forever :(. Having issues finding a way to do the barrier (send/receive messages with other
+processes) on a single thread.
+
+* Idea to implement distributed barrier: connect to nodes in node list one by one, all in the same order, sending ready
+messages as we go. This should prevent multiple processes getting into a deadlock of waiting for connections. Then, send
+all ready messages after receiving enough ready messages. Implement 

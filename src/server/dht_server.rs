@@ -4,12 +4,12 @@ use mylib::common::properties::{Properties, get_properties};
 use mylib::common::hashtable::Hashtable;
 use mylib::common::net::confirm_distributed_barrier;
 use server_functions::{accept_client};
+use std::sync::Arc;
 
 fn main() {
     let properties: Properties = get_properties();
-    //TODO: implement distributed barrier
     if !confirm_distributed_barrier(&properties.server_port, &properties.node_ips, true) {
-        return;
+        panic!("Distributed barrier failed!");
     }
 
     //TODO: create a thread pool
