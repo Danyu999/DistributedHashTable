@@ -33,6 +33,9 @@ of processes. However, sending a message requires connecting to each process, an
 each process ends up waiting forever :(. Having issues finding a way to do the barrier (send/receive messages with other
 processes) on a single thread.
 
-* Idea to implement distributed barrier: connect to nodes in node list one by one, all in the same order, sending ready
-messages as we go. This should prevent multiple processes getting into a deadlock of waiting for connections. Then, send
-all ready messages after receiving enough ready messages. Implement 
+* Idea to implement distributed barrier: Multithread. One thread listens for barrier messages, counting the number of ready
+and allready messages. Another thread attempts to send ready messages to all nodes in the network (including itself). It keeps
+retrying until it has sent one message to each node. Once the number of ready messages received matches the number of nodes, broadcast
+an allready message. The program continues when it has received as many allready messages as there are processes.
+
+* Tested program on aws instance successfully. The distributed barrier appears to be working for a single process. 

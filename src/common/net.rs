@@ -1,10 +1,11 @@
 use std::net::Ipv4Addr;
 use std::net::{TcpListener, TcpStream};
 use std::error::Error;
-use serde::{Serialize, Deserialize, Serializer};
+use serde::{Serialize, Deserialize};
 use crate::common::net::BarrierMessage::{OneReady, AllReady};
 use std::thread;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use crate::common::net::DHTMessage::{Get, Put};
 
 #[derive(Serialize, Deserialize)]
 pub enum BarrierMessage {
@@ -13,9 +14,18 @@ pub enum BarrierMessage {
 }
 
 #[derive(Serialize, Deserialize)]
-pub enum RequestMessage {
+pub enum DHTMessage {
     Get(u64), //(key)
-    Put(u64, u64, String), //(key, sizeOfContent, content)
+    Put(u64, String), //(key, sizeOfContent, content)
+    Response(bool),
+}
+
+pub fn get_key_from_dht_message(msg: &DHTMessage) -> u64 {
+    match msg {
+        Get(key) => { *key },
+        Put(key, _) => { *key },
+        _ => { panic!("expected Get or Put type message") }
+    }
 }
 
 /*impl Serialize for BarrierMessage {
@@ -38,9 +48,9 @@ pub fn read_barrier_message_from_stream(stream: &TcpStream) -> Result<BarrierMes
     Ok(req)
 }
 
-pub fn read_request_message_from_stream(stream: &TcpStream) -> Result<RequestMessage, Box<dyn Error>> {
+pub fn read_request_message_from_stream(stream: &TcpStream) -> Result<DHTMessage, Box<dyn Error>> {
     let mut de = serde_json::Deserializer::from_reader(stream);
-    let req = RequestMessage::deserialize(&mut de)?;
+    let req = DHTMessage::deserialize(&mut de)?;
 
     Ok(req)
 }
@@ -58,15 +68,13 @@ fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, ms
         }
         println!("Trying to connect to: {}" , node_ips_left[i].to_string());
         //server_port will represent the server, while server_port+1 will be the temp client port
-        for j in 0..1 {
-            match TcpStream::connect(node_ips_left[i].to_string() + ":" + &(server_port + j).to_string()) {
-                Ok(stream) => {
-                    println!("Connected to {}!", server_port + j);
-                    serde_json::to_writer(&stream, &msg).unwrap();
-                    node_ips_left.swap_remove(i);
-                }
-                Err(e) => { println!("Error: {}", e); i += 1;}
+        match TcpStream::connect(node_ips_left[i].to_string() + ":" + &server_port.to_string()) {
+            Ok(stream) => {
+                println!("Connected to {}!", server_port);
+                serde_json::to_writer(&stream, &msg).unwrap();
+                node_ips_left.swap_remove(i);
             }
+            Err(e) => { println!("Error: {}", e); i += 1;}
         }
     }
     println!("Done broadcasting!");
@@ -74,7 +82,7 @@ fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, ms
 }
 
 /**
-* Makes sure all processes, clients and servers, are up and running
+* Makes sure all processes are up and running
 * Returns true if everything is up and running, false if an error occurs
 **/
 pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, is_server: bool) -> bool {
@@ -83,9 +91,9 @@ pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, 
 
     //listen and count the number of ready messages received
     let port: String;
-    if is_server { port = sync_server_port.to_string() } else { port = (server_port + 1).to_string()}
+    if is_server { port = sync_server_port.to_string() } else { port = (server_port + 1).to_string()} //differentiate between clients and servers
     let listener = TcpListener::bind("0.0.0.0:".to_string() + &port).unwrap();
-    println!("Process listening on port {}", &port);
+    println!("Process listening for barrier msgs on port {}", &port);
     let mut num_ready = 0;
     let mut num_all_ready = 0;
 
@@ -95,11 +103,9 @@ pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, 
     thread::spawn(move || { broadcast_all_barrier_message(&server_port_copy, &node_ips_copy, BarrierMessage::OneReady) });
 
     //accept a new connection
-    println!("Process {} listening for barrier messages...", &port);
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                println!("Connected with sender!");
                 match read_barrier_message_from_stream(&stream) {
                     Ok(msg) => {
                         match msg {
@@ -124,16 +130,10 @@ pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, 
                             }
                         }
                     }
-                    Err(e) => {
-                        println!("Error reading message from stream! {}", e);
-                        return false;
-                    }
+                    Err(e) => { println!("Error reading message from stream! {}", e); return false; }
                 }
             }
-            Err(e) => {
-                println!("Error connecting to a process: {}", e);
-                return false;
-            }
+            Err(e) => { println!("Error connecting to a process: {}", e); return false; }
         }
     }
     return true;

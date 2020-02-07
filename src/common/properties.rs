@@ -11,6 +11,8 @@ pub struct Properties {
     pub server_port: u64,
     pub dht_num_threads: u64,
     pub dht_num_buckets: u64,
+    pub key_range: Vec<u64>,
+    pub num_requests: u64
 }
 
 /**

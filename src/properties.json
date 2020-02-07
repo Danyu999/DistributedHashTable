@@ -2,5 +2,7 @@
   "node_ips": ["127.0.0.1"],
   "server_port": 3333,
   "dht_num_threads": 1,
-  "dht_num_buckets": 10
+  "dht_num_buckets": 10,
+  "key_range": [0,1000],
+  "num_requests": 1000
 }
