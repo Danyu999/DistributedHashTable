@@ -46,3 +46,13 @@ server one by one, retrying if necessary until it has sent all requests.
 * Currently unsure whether it is better to have a persistent connection between each client and server, or only make the connections as needed.
 Implemented both versions (unsure if they work), but currently moving forward with remaking connections as needed because the server is currently
 not written to accept multiple persistent connections.
+
+* Single-threaded server, metrics recording, client all fully implemented. Through testing (one client and one server locally), 
+setting ~30000 operations or less has throughput of around 2000. Around 40000 operations or more, throughout suddenly slows to ~350.
+Unsure why this happens. Receiving error "Only one usage of each socket address (protocol/network address/port) is normally permitted."
+sometimes when client tries to connect to the server. Eventually succeeds, but goes back and forth between success and this error.
+
+* Figured the weird limiting issue/error mentioned regarding throughput was due to port exhaustion. Each time the client made a connection,
+it used a port, which could then not be used for 4 minutes. The default number of usable ports was not enough with higher number of operations,
+leading to port exhaustion. By increasing the number of dynamic ports, I was able to get ~2000 throughput with 100000 operations (same environment
+as previous bullet point).

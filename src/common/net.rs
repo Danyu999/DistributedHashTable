@@ -87,8 +87,6 @@ fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, ms
 * Returns true if everything is up and running, false if an error occurs
 **/
 pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, is_server: bool) -> bool {
-
-
     //listen and count the number of ready messages received
     let port: u64;
     if is_server { port = *server_port; } else { port = server_port + 1; } //differentiate between clients and servers

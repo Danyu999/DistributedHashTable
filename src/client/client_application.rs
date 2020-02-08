@@ -6,6 +6,15 @@ use rand::distributions::{Distribution, Uniform, Alphanumeric};
 use mylib::common::net::DHTMessage::{Get, Put};
 use mylib::common::metrics::Metrics;
 use std::time::Instant;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
+
+// Hash function to hash the keys. Each DefaultHasher created with new is guaranteed to be the same as others
+fn my_hash<T>(obj: T) -> u64 where T: Hash, {
+    let mut hasher = DefaultHasher::new();
+    obj.hash(&mut hasher);
+    hasher.finish()
+}
 
 // Generates and returns num_requests number of Get/Put requests randomly within the given key_range
 fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage> {
@@ -52,10 +61,10 @@ fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_
     //let node_streams = get_server_streams(node_ips, server_port);
     while !requests.is_empty() {
         let request = requests.pop().unwrap();
-        let which_node: usize = get_key_from_dht_message(&request) as usize % num_nodes; //mods the key by the number of nodes
+        let which_node: usize = my_hash(get_key_from_dht_message(&request)) as usize % num_nodes; //mods the key by the number of nodes
 
         loop { //keeps retrying until the message goes through successfully
-            println!("Connecting to {}", node_ips[which_node].to_string() + ":" + &server_port.to_string());
+            //println!("Connecting to {}", node_ips[which_node].to_string() + ":" + &server_port.to_string());
             match TcpStream::connect(node_ips[which_node].to_string() + ":" + &server_port.to_string()) {
                 Ok(stream) => {
                     // send request
@@ -95,7 +104,7 @@ fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_
 
                     break;
                 }
-                Err(e) => { println!("Failed to connect: {}. Retrying...", e); }
+                Err(e) => { } //Normally would print failed to connect, retrying, but repetitive I/O like that would slow down the program a lot
             }
         }
         metrics.time_one_operation.push(start_operation.elapsed().as_micros());
@@ -113,15 +122,16 @@ fn mean(list: &Vec<u128>) -> f64 {
 // Prints out the collected metrics
 // TODO: write results to a file
 fn print_metrics(metrics: Metrics) {
+    println!("Total number of operations: {}", metrics.num_operations);
     println!("Key range size: {}", metrics.key_range_size);
     println!("Successful puts: {}", metrics.successful_put);
     println!("Unsuccessful puts: {}", metrics.unsuccessful_put);
     println!("Some get: {}", metrics.some_get);
     println!("None get: {}", metrics.none_get);
     println!("Failed requests: {}", metrics.failed_request);
-    println!("Total send_requests time: {}", metrics.total_time);
-    println!("Average number of operations per second: {}", metrics.total_time as f64/metrics.num_operations as f64);
-    println!("Average time for system to accomplish one operation: {}", mean(&metrics.time_one_operation));
+    println!("Total send_requests time: {} seconds", metrics.total_time/1000000 as u128);
+    println!("Average number of operations per second: {}", metrics.num_operations as f64/(metrics.total_time as f64/1000000 as f64));
+    println!("Average time for system to accomplish one operation: {} seconds", mean(&metrics.time_one_operation)/1000000 as f64);
 }
 
 fn main() {
