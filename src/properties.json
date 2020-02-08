@@ -4,5 +4,5 @@
   "dht_num_threads": 1,
   "dht_num_buckets": 10,
   "key_range": [0,1000],
-  "num_requests": 10
+  "num_requests": 100
 }

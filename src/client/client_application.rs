@@ -4,7 +4,10 @@ use mylib::common::net::{confirm_distributed_barrier, DHTMessage, read_request_m
 use rand::Rng;
 use rand::distributions::{Distribution, Uniform, Alphanumeric};
 use mylib::common::net::DHTMessage::{Get, Put};
+use mylib::common::metrics::Metrics;
+use std::time::Instant;
 
+// Generates and returns num_requests number of Get/Put requests randomly within the given key_range
 fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage> {
     let mut requests: Vec<DHTMessage> = Vec::new();
     let mut rng = rand::thread_rng();
@@ -40,7 +43,10 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage
 //    return streams;
 //}
 
-fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_port: u64) -> bool {
+// Sends the requests to the appropriate server one by one
+fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_port: u64, metrics: &mut Metrics) -> bool {
+    let start = Instant::now();
+    let mut start_operation;
     //TODO: create streams for all nodes, instead of remaking connections all the time (is this a good idea?)
     let num_nodes = node_ips.len();
     //let node_streams = get_server_streams(node_ips, server_port);
@@ -54,19 +60,33 @@ fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_
                 Ok(stream) => {
                     // send request
                     //serde_json::to_writer(&node_streams[which_node], &request).unwrap();
+                    start_operation = Instant::now();
                     serde_json::to_writer(&stream, &request).unwrap();
 
                     // wait for and receive response from server
                     match read_request_message_from_stream(&stream/*&node_streams[which_node]*/) {
                         Ok(response) => {
                             match response {
-                                DHTMessage::Response(success) => {
-                                    if !success {
-                                        // Got a negative response, so we try the same request again
-                                        requests.push(request);
+                                DHTMessage::RequestFailed => {
+                                    // Got a negative response, so we try the same request again
+                                    metrics.failed_request += 1;
+                                    requests.push(request);
+                                }
+                                DHTMessage::GetResponse(option) => {
+                                    if option.is_some() {
+                                        metrics.some_get += 1;
+                                    } else {
+                                        metrics.none_get += 1;
                                     }
                                 }
-                                _ => { println!("Unexpected response from server. Expected DHTMessage::Response"); }
+                                DHTMessage::PutResponse(success) => {
+                                    if success {
+                                        metrics.successful_put += 1;
+                                    } else {
+                                        metrics.unsuccessful_put += 1;
+                                    }
+                                }
+                                _ => { println!("Unexpected response from server. Expected DHTMessage::Response"); return false; }
                             }
 
                         }
@@ -78,8 +98,30 @@ fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_
                 Err(e) => { println!("Failed to connect: {}. Retrying...", e); }
             }
         }
+        metrics.time_one_operation.push(start_operation.elapsed().as_micros());
     }
+    metrics.total_time = start.elapsed().as_micros();
     return true;
+}
+
+fn mean(list: &Vec<u128>) -> f64 {
+    let mut sum: u128 = 0;
+    for ele in list.iter() { sum += *ele; }
+    sum as f64 / list.len() as f64
+}
+
+// Prints out the collected metrics
+// TODO: write results to a file
+fn print_metrics(metrics: Metrics) {
+    println!("Key range size: {}", metrics.key_range_size);
+    println!("Successful puts: {}", metrics.successful_put);
+    println!("Unsuccessful puts: {}", metrics.unsuccessful_put);
+    println!("Some get: {}", metrics.some_get);
+    println!("None get: {}", metrics.none_get);
+    println!("Failed requests: {}", metrics.failed_request);
+    println!("Total send_requests time: {}", metrics.total_time);
+    println!("Average number of operations per second: {}", metrics.total_time as f64/metrics.num_operations as f64);
+    println!("Average time for system to accomplish one operation: {}", mean(&metrics.time_one_operation));
 }
 
 fn main() {
@@ -91,8 +133,12 @@ fn main() {
     // Generate num_requests number of requests randomly
     let requests = generate_requests(&properties.num_requests, &properties.key_range);
 
+    let mut metrics = Metrics::new();
+    metrics.key_range_size = properties.key_range[1] - properties.key_range[0];
+    metrics.num_operations = properties.num_requests;
     // Make requests to the appropriate server
     println!("Sending requests...");
-    send_requests(requests, properties.node_ips, properties.server_port);
+    send_requests(requests, properties.node_ips, properties.server_port, &mut metrics);
+    print_metrics(metrics);
     println!("Client terminated.");
 }

@@ -10,8 +10,17 @@ pub fn handle_client(stream: TcpStream, server_port: &u64, node_ips: &Vec<Ipv4Ad
     println!("Server port: {}", &server_port);
     println!("First node ip: {}", &node_ips[0]);
     //TODO: Need to do something with the hashtable based on the msg
-    let request = DHTMessage::Response(true);
-    serde_json::to_writer(&stream, &request).unwrap();
+    let response: DHTMessage;
+    match msg {
+        DHTMessage::Get(key) => {
+            response = DHTMessage::GetResponse(hashtable.get(&key));
+        }
+        DHTMessage::Put(key, val) => {
+            response = DHTMessage::PutResponse(hashtable.insert(key, val));
+        }
+        _ => { panic!("Expected Get or Put request"); }
+    }
+    serde_json::to_writer(&stream, &response).unwrap();
 }
 
 pub fn accept_client(server_port: &u64, node_ips: &Vec<Ipv4Addr>, hashtable: &mut Hashtable<String>) {

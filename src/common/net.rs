@@ -17,7 +17,9 @@ pub enum BarrierMessage {
 pub enum DHTMessage {
     Get(u64), //(key)
     Put(u64, String), //(key, sizeOfContent, content)
-    Response(bool),
+    GetResponse(Option<String>),
+    PutResponse(bool),
+    RequestFailed,
 }
 
 pub fn get_key_from_dht_message(msg: &DHTMessage) -> u64 {
