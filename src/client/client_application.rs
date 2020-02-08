@@ -21,12 +21,12 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage
     let mut requests: Vec<DHTMessage> = Vec::new();
     let mut rng = rand::thread_rng();
     let request_type_range = Uniform::from(0..5);
-    let key_range_distribution = Uniform::from(key_range[0]..(key_range[1]+1));
+    let key_range_distribution = Uniform::from(key_range[0]..(key_range[1]));
     println!("Generating requests!");
     for _ in 0..*num_requests {
         let key = key_range_distribution.sample(&mut rng);
         match request_type_range.sample(&mut rng) {
-            0 | 1 => { requests.push(Get(key)); } //Get
+            0 | 1 | 2 => { requests.push(Get(key)); } //Get
             _ => { requests.push(Put(key, rng.sample_iter(&Alphanumeric).take(30).collect())); } //Put
         }
     }
@@ -104,7 +104,7 @@ fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_
 
                     break;
                 }
-                Err(e) => { } //Normally would print failed to connect, retrying, but repetitive I/O like that would slow down the program a lot
+                Err(_) => { } //Normally would print failed to connect, retrying, but repetitive I/O like that would slow down the program a lot
             }
         }
         metrics.time_one_operation.push(start_operation.elapsed().as_micros());

@@ -1,5 +1,6 @@
 {
   "node_ips": ["127.0.0.1"],
+  "node_ips_temp": ["172.31.27.84", "172.31.16.86", "172.31.23.177"],
   "server_port": 3333,
   "dht_num_threads": 1,
   "dht_num_buckets": 10,

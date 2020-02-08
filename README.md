@@ -1,7 +1,7 @@
 # DistributedHashTable
 * Assignment 1 for CSE 403
 
-###Chronological progress:
+### Chronological progress:
 * Decided to use AWS. Spent time reading/learning about EC2 and launching/maintaining instances.
 
 * Decided to work with Rust. Currently shakiest on the topic of lifetimes.
@@ -56,3 +56,8 @@ sometimes when client tries to connect to the server. Eventually succeeds, but g
 it used a port, which could then not be used for 4 minutes. The default number of usable ports was not enough with higher number of operations,
 leading to port exhaustion. By increasing the number of dynamic ports, I was able to get ~2000 throughput with 100000 operations (same environment
 as previous bullet point).
+
+* Port exhaustion does not seem to happen in the linux environment. I assume it's because windows and linux handle ports differently.
+
+* Started multithreaded implementation by first doing a very coarse synchronization pattern, basically locking the entire hashtable for each operation.
+I also started with simply spawning a thread to handle each request. Will move to making a thread pool and bucket locking.
