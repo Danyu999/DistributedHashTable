@@ -20,13 +20,13 @@ fn my_hash<T>(obj: T) -> u64 where T: Hash, {
 fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage> {
     let mut requests: Vec<DHTMessage> = Vec::new();
     let mut rng = rand::thread_rng();
-    let request_type_range = Uniform::from(0..2);
-    let key_range_distribution = Uniform::from(key_range[0]..key_range[1]);
+    let request_type_range = Uniform::from(0..5);
+    let key_range_distribution = Uniform::from(key_range[0]..(key_range[1]+1));
     println!("Generating requests!");
     for _ in 0..*num_requests {
         let key = key_range_distribution.sample(&mut rng);
         match request_type_range.sample(&mut rng) {
-            0 => { requests.push(Get(key)); } //Get
+            0 | 1 => { requests.push(Get(key)); } //Get
             _ => { requests.push(Put(key, rng.sample_iter(&Alphanumeric).take(30).collect())); } //Put
         }
     }
