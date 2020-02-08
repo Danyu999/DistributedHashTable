@@ -3,14 +3,14 @@ use std::collections::HashMap;
 
 
 pub struct Hashtable<T> {
-    num_buckets: u64,
+    num_buckets: usize,
     hashtable: HashMap<u64, T>,
 }
 
 impl Hashtable<String> {
-    pub fn new() -> Hashtable<String> {
+    pub fn new(num_buckets: usize) -> Hashtable<String> {
         Hashtable {
-            num_buckets: 10,
+            num_buckets,
             hashtable: HashMap::new(),
         }
     }

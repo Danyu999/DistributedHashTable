@@ -136,6 +136,9 @@ fn print_metrics(metrics: Metrics) {
 
 fn main() {
     let properties: Properties = get_properties();
+
+    // Does the distributed barrier, ensuring all servers are up and ready before continuing
+    // Note: Decided thread pool was overkill for distributed barrier, so it just spawns a few threads
     if !confirm_distributed_barrier(&properties.server_port, &properties.node_ips, false) {
         panic!("Distributed barrier for client failed!");
     }

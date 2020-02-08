@@ -2,7 +2,7 @@ use std::net::{TcpStream, TcpListener};
 use mylib::common::hashtable::Hashtable;
 use mylib::common::net::{DHTMessage, read_request_message_from_stream};
 use std::sync::{Arc, Mutex};
-use std::thread;
+use mylib::common::threadpool::ThreadPool;
 
 /**
 * server_functions handles parsing the input from a client, and calling the respective server command
@@ -23,7 +23,7 @@ pub fn handle_client(stream: TcpStream, hashtable: Arc<Mutex<Hashtable<String>>>
     serde_json::to_writer(&stream, &response).unwrap();
 }
 
-pub fn accept_client(hashtable: &mut Arc<Mutex<Hashtable<String>>>) {
+pub fn accept_client(hashtable: &mut Arc<Mutex<Hashtable<String>>>, pool: &ThreadPool) {
     let listener = TcpListener::bind("0.0.0.0:3333").unwrap();
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port 3333");
@@ -34,7 +34,8 @@ pub fn accept_client(hashtable: &mut Arc<Mutex<Hashtable<String>>>) {
                 match read_request_message_from_stream(&stream) {
                     Ok(msg) => {
                         let hashtable_clone = hashtable.clone();
-                        thread::spawn(move || { handle_client(stream, hashtable_clone, msg) });
+                        pool.execute(|| { handle_client(stream, hashtable_clone, msg) });
+                        //thread::spawn(move || { handle_client(stream, hashtable_clone, msg) });
                         //println!("Done handling, listening again...")
                     }
                     Err(e) => { println!("Error: {}", e); }
