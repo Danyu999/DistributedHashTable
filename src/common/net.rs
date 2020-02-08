@@ -59,7 +59,6 @@ pub fn read_request_message_from_stream(stream: &TcpStream) -> Result<DHTMessage
 
 
 fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, msg: BarrierMessage) -> bool {
-    println!("Broadcasting BarrierMessage with server_port {}", server_port);
     //connect to each node
     let mut node_ips_left = node_ips.clone();
     let mut i = 0;
@@ -68,15 +67,15 @@ fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, ms
             i = 0;
             continue;
         }
-        println!("Trying to connect to: {}" , node_ips_left[i].to_string());
+        //println!("Trying to connect to: {}" , node_ips_left[i].to_string());
         //server_port will represent the server, while server_port+1 will be the temp client port
         match TcpStream::connect(node_ips_left[i].to_string() + ":" + &server_port.to_string()) {
             Ok(stream) => {
-                println!("Connected to {}!", server_port);
+                //println!("Connected to {}!", server_port);
                 serde_json::to_writer(&stream, &msg).unwrap();
                 node_ips_left.swap_remove(i);
             }
-            Err(e) => { println!("Error: {}", e); i += 1;}
+            Err(_) => { i += 1;}
         }
     }
     return true;
@@ -100,6 +99,7 @@ pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, 
     //send out ready messages to all processes on the network
     let server_port_copy = Arc::clone(&sync_port);
     let node_ips_copy = Arc::clone(&sync_node_ips);
+    println!("Broadcasting OneReady to all processes");
     thread::spawn(move || { broadcast_all_barrier_message(&server_port_copy, &node_ips_copy, BarrierMessage::OneReady) });
 
     //accept a new connection
@@ -117,6 +117,7 @@ pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, 
                                     println!("Received everybody is ready!");
                                     let server_port_copy = Arc::clone(&sync_port);
                                     let node_ips_copy = Arc::clone(&sync_node_ips);
+                                    println!("Broadcasting AllReady to all processes");
                                     thread::spawn(move || { broadcast_all_barrier_message(&server_port_copy, &node_ips_copy, BarrierMessage::AllReady) });
                                 }
                             }
