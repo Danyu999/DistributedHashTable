@@ -4,7 +4,7 @@ use mylib::common::properties::{Properties, get_properties};
 use mylib::common::hashtable::Hashtable;
 use mylib::common::net::confirm_distributed_barrier;
 use server_functions::{accept_client};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use mylib::common::threadpool::ThreadPool;
 
 fn main() {
@@ -16,7 +16,7 @@ fn main() {
         panic!("Distributed barrier for server failed!");
     }
 
-    let mut hashtable = Arc::new(Mutex::new(Hashtable::new(properties.dht_num_buckets)));
+    let mut hashtable = Arc::new(Hashtable::new(properties.dht_num_buckets));
     let pool= ThreadPool::new(properties.dht_num_threads);
     //let func = |stream| {return handle_client(stream, hashtable, &properties)}; //TODO: refactor to make the closure method work
     accept_client(&mut hashtable, &pool);

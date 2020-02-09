@@ -33,10 +33,10 @@ of processes. However, sending a message requires connecting to each process, an
 each process ends up waiting forever :(. Having issues finding a way to do the barrier (send/receive messages with other
 processes) on a single thread.
 
-* Idea to implement distributed barrier: Multithread. One thread listens for barrier messages, counting the number of ready
-and allready messages. Another thread attempts to send ready messages to all nodes in the network (including itself). It keeps
+* Idea to implement distributed barrier: Multi-thread. One thread listens for barrier messages, counting the number of ready
+and AllReady messages. Another thread attempts to send ready messages to all nodes in the network (including itself). It keeps
 retrying until it has sent one message to each node. Once the number of ready messages received matches the number of nodes, broadcast
-an allready message. The program continues when it has received as many allready messages as there are processes.
+an AllReady message. The program continues when it has received as many AllReady messages as there are processes.
 
 * Tested program on aws instance successfully. The distributed barrier appears to be working for a single process.
 
@@ -57,7 +57,10 @@ it used a port, which could then not be used for 4 minutes. The default number o
 leading to port exhaustion. By increasing the number of dynamic ports, I was able to get ~2000 throughput with 100000 operations (same environment
 as previous bullet point).
 
-* Port exhaustion does not seem to happen in the linux environment. I assume it's because windows and linux handle ports differently.
+* Port exhaustion does not seem to happen in the linux environment. I assume it's because windows and linux handle ports differently. Did a full test
+with the single-threaded DHT server on the three AWS instances. Throughput was around ~1400, which seems very good.
 
-* Started multithreaded implementation by first doing a very coarse synchronization pattern, basically locking the entire hashtable for each operation.
+* Started multi-threaded implementation by first doing a very coarse synchronization pattern, basically locking the entire hashtable for each operation.
 I also started with simply spawning a thread to handle each request. Will move to making a thread pool and bucket locking.
+
+* Thread pool implemented by following the official rust book's tutorial on how to make a thread pool.

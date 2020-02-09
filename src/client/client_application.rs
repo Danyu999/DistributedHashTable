@@ -6,15 +6,7 @@ use rand::distributions::{Distribution, Uniform, Alphanumeric};
 use mylib::common::net::DHTMessage::{Get, Put};
 use mylib::common::metrics::Metrics;
 use std::time::Instant;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
-
-// Hash function to hash the keys. Each DefaultHasher created with new is guaranteed to be the same as others
-fn my_hash<T>(obj: T) -> u64 where T: Hash, {
-    let mut hasher = DefaultHasher::new();
-    obj.hash(&mut hasher);
-    hasher.finish()
-}
+use mylib::common::my_hash;
 
 // Generates and returns num_requests number of Get/Put requests randomly within the given key_range
 fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage> {

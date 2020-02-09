@@ -30,18 +30,6 @@ pub fn get_key_from_dht_message(msg: &DHTMessage) -> u64 {
     }
 }
 
-/*impl Serialize for BarrierMessage {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("BarrierMessage", 2)?;
-        state.serialize_tuple_variant("AllReady", &self.AllReady)?;
-        state.serialize_tuple_variant("OneReady", &self.OneReady)?;
-        state.end()
-    }
-}*/
-
 //from https://docs.serde.rs/serde_json/de/fn.from_reader.html
 pub fn read_barrier_message_from_stream(stream: &TcpStream) -> Result<BarrierMessage, Box<dyn Error>> {
     let mut de = serde_json::Deserializer::from_reader(stream);
