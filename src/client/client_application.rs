@@ -48,7 +48,7 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage
 fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_port: u64, metrics: &mut Metrics) -> bool {
     let start = Instant::now();
     let mut start_operation;
-    //TODO: create streams for all nodes, instead of remaking connections all the time (is this a good idea?)
+    //TODO: keep persistent connections/streams to each server; never close a stream (is this a good idea?)
     let num_nodes = node_ips.len();
     //let node_streams = get_server_streams(node_ips, server_port);
     while !requests.is_empty() {
@@ -118,12 +118,12 @@ fn print_metrics(metrics: Metrics) {
     println!("Key range size: {}", metrics.key_range_size);
     println!("Successful puts: {}", metrics.successful_put);
     println!("Unsuccessful puts: {}", metrics.unsuccessful_put);
-    println!("Some get: {}", metrics.some_get);
-    println!("None get: {}", metrics.none_get);
+    println!("Some gets: {}", metrics.some_get);
+    println!("None gets: {}", metrics.none_get);
     println!("Failed requests: {}", metrics.failed_request);
-    println!("Total send_requests time: {} seconds", metrics.total_time/1000000 as u128);
+    println!("Total send_requests time: {} seconds", metrics.total_time as f64/1000000 as f64);
     println!("Average number of operations per second: {}", metrics.num_operations as f64/(metrics.total_time as f64/1000000 as f64));
-    println!("Average time for system to accomplish one operation: {} seconds", mean(&metrics.time_one_operation)/1000000 as f64);
+    println!("Average time for system to accomplish one operation: {} milliseconds", mean(&metrics.time_one_operation)/1000 as f64);
 }
 
 fn main() {
