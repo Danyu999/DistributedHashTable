@@ -31,7 +31,8 @@ pub fn get_key_from_dht_message(msg: &DHTMessage) -> u64 {
     }
 }
 
-//from https://docs.serde.rs/serde_json/de/fn.from_reader.html
+// Note: deserialize(&mut de)? blocks
+// from https://docs.serde.rs/serde_json/de/fn.from_reader.html
 pub fn read_barrier_message_from_stream(stream: &TcpStream) -> Result<BarrierMessage, Box<dyn Error>> {
     let mut de = serde_json::Deserializer::from_reader(stream);
     let req = BarrierMessage::deserialize(&mut de)?;
@@ -134,7 +135,7 @@ pub fn confirm_distributed_barrier_server(server_port: &u64, node_ips: &Vec<Ipv4
 // Only spins after server is up and running
 pub fn handle_client_checks(port: &u64) {
     let listener = TcpListener::bind("0.0.0.0:".to_string() + &port.to_string()).unwrap();
-    println!("Process listening for barrier msgs on port {}", &port);
+    println!("Process listening for client check barrier msgs on port {}", &port);
     //accept a new connection
     for stream in listener.incoming() {
         match stream {

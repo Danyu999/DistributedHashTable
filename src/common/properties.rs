@@ -4,7 +4,7 @@ use std::net::Ipv4Addr;
 use std::path::Path;
 use std::fs::File;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Properties {
     pub node_ips: Vec<Ipv4Addr>,
     pub server_port: u64,
@@ -12,7 +12,8 @@ pub struct Properties {
     pub dht_num_threads: usize,
     pub dht_num_buckets: usize,
     pub key_range: Vec<u64>,
-    pub num_requests: u64
+    pub num_requests: u64,
+    pub num_client_threads: usize
 }
 
 /**

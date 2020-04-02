@@ -19,9 +19,11 @@ fn main() {
         panic!("Distributed barrier for server failed!");
     }
 
+    let server_client_check_port_copy = properties.server_client_check_port.clone();
+
     //spawn a thread to handle new clients that want to confirm that the server is up
-    thread::spawn(move || { handle_client_checks(&properties.server_client_check_port) });
+    thread::spawn(move || { handle_client_checks(&server_client_check_port_copy) });
 
     //let func = |stream| {return handle_client(stream, hashtable, &properties)}; //TODO: refactor to make the closure method work
-    accept_client(&mut hashtable, &pool);
+    accept_client(&properties.server_port, &mut hashtable, &pool);
 }
