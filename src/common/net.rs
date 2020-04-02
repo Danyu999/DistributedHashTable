@@ -11,6 +11,7 @@ use crate::common::net::DHTMessage::{Get, Put};
 pub enum BarrierMessage {
     AllReady,
     OneReady,
+    ClientCheck,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -56,7 +57,6 @@ fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, ms
             continue;
         }
         //println!("Trying to connect to: {}" , node_ips_left[i].to_string());
-        //server_port will represent the server, while server_port+1 will be the temp client port
         match TcpStream::connect(node_ips_left[i].to_string() + ":" + &server_port.to_string()) {
             Ok(stream) => {
                 //println!("Connected to {}!", server_port);
@@ -69,17 +69,19 @@ fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, ms
     return true;
 }
 
+fn respond_client_check(stream: TcpStream) {
+    serde_json::to_write(&stream, BarrierMessage::OneReady).unwrap();
+}
+
 /**
 * Makes sure all processes are up and running
 * Returns true if everything is up and running, false if an error occurs
 **/
-pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, is_server: bool) -> bool {
+pub fn confirm_distributed_barrier_server(server_port: &u64, node_ips: &Vec<Ipv4Addr>) -> bool {
     //listen and count the number of ready messages received
-    let port: u64;
-    if is_server { port = *server_port; } else { port = server_port + 1; } //differentiate between clients and servers
-    let sync_port = Arc::new(port.clone());
+    let sync_port = Arc::new(server_port.clone());
     let sync_node_ips = Arc::new(node_ips.clone());
-    let listener = TcpListener::bind("0.0.0.0:".to_string() + &port.to_string()).unwrap();
+    let listener = TcpListener::bind("0.0.0.0:".to_string() + &server_port.to_string()).unwrap();
     println!("Process listening for barrier msgs on port {}", &port);
     let mut num_ready = 0;
     let mut num_all_ready = 0;
@@ -126,4 +128,67 @@ pub fn confirm_distributed_barrier(server_port: &u64, node_ips: &Vec<Ipv4Addr>, 
         }
     }
     return false;
+}
+
+// An always spinning thread on all servers that confirms any asking clients that it is up and ready.
+// Only spins after server is up and running
+pub fn handle_client_checks(port: &u64) {
+    let listener = TcpListener::bind("0.0.0.0:".to_string() + &port.to_string()).unwrap();
+    println!("Process listening for barrier msgs on port {}", &port);
+    //accept a new connection
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                match read_barrier_message_from_stream(&stream) {
+                    Ok(msg) => {
+                        match msg {
+                            ClientCheck => {
+                                //barrier msg from a client. respond with OneReady msg
+                                println!("ClientCheck message received");
+                                thread::spawn(move || { serde_json::to_write(&stream, BarrierMessage::OneReady).unwrap() });
+                            }
+                        }
+                    }
+                    Err(e) => { println!("Error reading message from stream! {}", e); }
+                }
+            }
+            Err(e) => { println!("Error connecting to a process: {}", e); }
+        }
+    }
+}
+
+// Creates a new connection with each server, checking if they are up
+// Doesn't return until it confirms all servers are up
+pub fn confirm_distributed_barrier_client(server_port: &u64, node_ips: &Vec<Ipv4Addr>) {
+    let mut node_ips_left = node_ips.clone();
+    let mut i = 0;
+    let msg = BarrierMessage::ClientCheck;
+    while !node_ips_left.is_empty() {
+        if i == node_ips_left.len() {
+            i = 0;
+            continue;
+        }
+        //println!("Trying to connect to: {}" , node_ips_left[i].to_string());
+        match TcpStream::connect(node_ips_left[i].to_string() + ":" + &server_port.to_string()) {
+            Ok(stream) => {
+                println!("Connected to {} for client barrier!", server_port);
+                serde_json::to_writer(&stream, &msg).unwrap();
+                match read_barrier_message_from_stream(&stream) {
+                    Ok(msg) => {
+                        match msg {
+                            OneReady => {
+                                println!("Server ack received!");
+                                node_ips_left.swap_remove(i);
+                            }
+                            _ => {
+                                Err(_) => { i += 1; }
+                            }
+                        }
+                    }
+                    Err(_) => { i += 1; }
+                }
+            }
+            Err(_) => { i += 1; }
+        }
+    }
 }

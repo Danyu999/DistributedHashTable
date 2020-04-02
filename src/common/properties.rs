@@ -9,6 +9,7 @@ use std::error::Error;
 pub struct Properties {
     pub node_ips: Vec<Ipv4Addr>,
     pub server_port: u64,
+    pub server_client_check_port: u64,
     pub dht_num_threads: usize,
     pub dht_num_buckets: usize,
     pub key_range: Vec<u64>,

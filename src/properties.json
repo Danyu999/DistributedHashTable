@@ -2,6 +2,7 @@
   "node_ips_test": ["127.0.0.1"],
   "node_ips": ["172.31.27.84", "172.31.16.86", "172.31.23.177"],
   "server_port": 3333,
+  "server_client_check_port": 2222,
   "dht_num_threads": 6,
   "dht_num_buckets": 2000,
   "key_range": [0,1000],

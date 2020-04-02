@@ -26,23 +26,23 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage
 }
 
 
-////Currently unused. Can be useful if the server has a thread dedicated to each client connection.
-//fn get_server_streams(mut node_ips: Vec<Ipv4Addr>, server_port: u64) -> Vec<TcpStream>{
-//    let mut streams: Vec<TcpStream> = Vec::new();
-//    while !node_ips.is_empty() {
-//        let ip = node_ips.pop().unwrap();
-//        match TcpStream::connect(ip.to_string() + &server_port.to_string()) {
-//            Ok(stream) => {
-//                streams.push(stream);
-//            }
-//            Err(e) => {
-//                println!("Failed to connect: {}. Retrying...", e);
-//                node_ips.push(ip);
-//            }
-//        }
-//    }
-//    return streams;
-//}
+//Currently unused. Can be useful if the server has a thread dedicated to each client connection.
+fn get_server_streams(mut node_ips: Vec<Ipv4Addr>, server_port: u64) -> Vec<TcpStream>{
+   let mut streams: Vec<TcpStream> = Vec::new();
+   while !node_ips.is_empty() {
+       let ip = node_ips.pop().unwrap();
+       match TcpStream::connect(ip.to_string() + &server_port.to_string()) {
+           Ok(stream) => {
+               streams.push(stream);
+           }
+           Err(e) => {
+               println!("Failed to connect: {}. Retrying...", e);
+               node_ips.push(ip);
+           }
+       }
+   }
+   return streams;
+}
 
 // Sends the requests to the appropriate server one by one
 fn send_requests(mut requests: Vec<DHTMessage>, node_ips: Vec<Ipv4Addr>, server_port: u64, metrics: &mut Metrics) -> bool {
@@ -129,18 +129,18 @@ fn print_metrics(metrics: Metrics) {
 fn main() {
     let properties: Properties = get_properties();
 
-    // Does the distributed barrier, ensuring all servers are up and ready before continuing
-    // Note: Decided thread pool was overkill for distributed barrier, so it just spawns a few threads
-    if !confirm_distributed_barrier(&properties.server_port, &properties.node_ips, false) {
-        panic!("Distributed barrier for client failed!");
-    }
-
     // Generate num_requests number of requests randomly
     let requests = generate_requests(&properties.num_requests, &properties.key_range);
 
     let mut metrics = Metrics::new();
     metrics.key_range_size = properties.key_range[1] - properties.key_range[0];
     metrics.num_operations = properties.num_requests;
+
+    // Does the distributed barrier, ensuring all servers are up and ready before continuing
+    if !confirm_distributed_barrier_client(&properties.server_client_check_port, &properties.node_ips) {
+        panic!("Distributed barrier (client-side) failed!");
+    }
+
     // Make requests to the appropriate server
     println!("Sending requests...");
     send_requests(requests, properties.node_ips, properties.server_port, &mut metrics);
