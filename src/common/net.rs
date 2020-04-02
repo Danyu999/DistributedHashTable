@@ -69,10 +69,6 @@ fn broadcast_all_barrier_message(server_port: &u64, node_ips: &Vec<Ipv4Addr>, ms
     return true;
 }
 
-fn respond_client_check(stream: TcpStream) {
-    serde_json::to_write(&stream, BarrierMessage::OneReady).unwrap();
-}
-
 /**
 * Makes sure all processes are up and running
 * Returns true if everything is up and running, false if an error occurs
@@ -82,7 +78,7 @@ pub fn confirm_distributed_barrier_server(server_port: &u64, node_ips: &Vec<Ipv4
     let sync_port = Arc::new(server_port.clone());
     let sync_node_ips = Arc::new(node_ips.clone());
     let listener = TcpListener::bind("0.0.0.0:".to_string() + &server_port.to_string()).unwrap();
-    println!("Process listening for barrier msgs on port {}", &port);
+    println!("Process listening for barrier msgs on port {}", &server_port);
     let mut num_ready = 0;
     let mut num_all_ready = 0;
 
@@ -119,6 +115,10 @@ pub fn confirm_distributed_barrier_server(server_port: &u64, node_ips: &Vec<Ipv4
                                     return true;
                                 }
                             }
+                            _ => {
+                                println!("Unexpected message received!");
+                                return false;
+                            }
                         }
                     }
                     Err(e) => { println!("Error reading message from stream! {}", e); return false; }
@@ -142,10 +142,13 @@ pub fn handle_client_checks(port: &u64) {
                 match read_barrier_message_from_stream(&stream) {
                     Ok(msg) => {
                         match msg {
-                            ClientCheck => {
+                            BarrierMessage::ClientCheck => {
                                 //barrier msg from a client. respond with OneReady msg
                                 println!("ClientCheck message received");
-                                thread::spawn(move || { serde_json::to_write(&stream, BarrierMessage::OneReady).unwrap() });
+                                thread::spawn(move || { serde_json::to_writer(&stream, &BarrierMessage::OneReady).unwrap() });
+                            }
+                            _ => {
+                                println!("Unexpected message received!");
                             }
                         }
                     }
@@ -181,7 +184,7 @@ pub fn confirm_distributed_barrier_client(server_port: &u64, node_ips: &Vec<Ipv4
                                 node_ips_left.swap_remove(i);
                             }
                             _ => {
-                                Err(_) => { i += 1; }
+                                i += 1;
                             }
                         }
                     }

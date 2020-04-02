@@ -2,10 +2,11 @@ mod server_functions;
 
 use mylib::common::properties::{Properties, get_properties};
 use mylib::common::hashtable::Hashtable;
-use mylib::common::net::confirm_distributed_barrier;
+use mylib::common::net::{confirm_distributed_barrier_server, handle_client_checks};
 use server_functions::{accept_client};
 use std::sync::Arc;
 use mylib::common::threadpool::ThreadPool;
+use std::thread;
 
 fn main() {
     let properties: Properties = get_properties();

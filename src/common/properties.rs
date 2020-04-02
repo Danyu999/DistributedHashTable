@@ -3,7 +3,6 @@ use std::io::Read;
 use std::net::Ipv4Addr;
 use std::path::Path;
 use std::fs::File;
-use std::error::Error;
 
 #[derive(Serialize, Deserialize)]
 pub struct Properties {
@@ -25,7 +24,7 @@ pub fn get_properties() -> Properties{
     let display = path.display();
     let mut file = match File::open(&path) {
         // The `description` method of `io::Error` returns a string that describes the error
-        Err(why) => panic!("couldn't open {}: {}", display, why.description()),
+        Err(why) => panic!("couldn't open {}: {}", display, why.to_string()),
         Ok(file) => file,
     };
     let mut data = String::new();

@@ -1,6 +1,6 @@
 use std::net::{TcpStream, Ipv4Addr};
 use mylib::common::properties::{Properties, get_properties};
-use mylib::common::net::{confirm_distributed_barrier, DHTMessage, read_request_message_from_stream, get_key_from_dht_message};
+use mylib::common::net::{confirm_distributed_barrier_client, DHTMessage, read_request_message_from_stream, get_key_from_dht_message};
 use rand::Rng;
 use rand::distributions::{Distribution, Uniform, Alphanumeric};
 use mylib::common::net::DHTMessage::{Get, Put};
@@ -137,9 +137,7 @@ fn main() {
     metrics.num_operations = properties.num_requests;
 
     // Does the distributed barrier, ensuring all servers are up and ready before continuing
-    if !confirm_distributed_barrier_client(&properties.server_client_check_port, &properties.node_ips) {
-        panic!("Distributed barrier (client-side) failed!");
-    }
+    confirm_distributed_barrier_client(&properties.server_client_check_port, &properties.node_ips);
 
     // Make requests to the appropriate server
     println!("Sending requests...");
