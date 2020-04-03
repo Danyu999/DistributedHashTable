@@ -1,0 +1,2 @@
+killall dht_server
+killall client_application

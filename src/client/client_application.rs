@@ -46,13 +46,12 @@ fn get_server_streams(node_ips: &Vec<Ipv4Addr>, server_port: &u64) -> Vec<TcpStr
    return streams;
 }
 
-fn get_replicated_nodes(key: &u64) {}
+//fn get_replicated_nodes(key: &u64) {}
 
 // Sends the requests to the appropriate server(s) one by one
 fn send_requests(mut requests: Vec<DHTMessage>, streams: Vec<TcpStream>, metrics: &mut Metrics) {
     let start = Instant::now();
     let mut start_operation;
-    //TODO: keep persistent connections/streams to each server; never close a stream
     let num_nodes = streams.len();
     while !requests.is_empty() {
         let request = requests.pop().unwrap();
@@ -60,11 +59,14 @@ fn send_requests(mut requests: Vec<DHTMessage>, streams: Vec<TcpStream>, metrics
 
         // send request
         start_operation = Instant::now();
+        //println!("Sending request");
         serde_json::to_writer(&streams[which_node], &request).unwrap();
+        //println!("Done sending request");
 
         // wait for and receive response from server
         match read_request_message_from_stream(&streams[which_node]) {
             Ok(response) => {
+                //println!("Handling response on client");
                 match response {
                     DHTMessage::RequestFailed => {
                         // Got a negative response, so we try the same request again
@@ -153,6 +155,6 @@ fn main() {
 
     for join_handle in join_handles {
         // println!("Main thread joining...");
-        join_handle.join().unwrap();
+        join_handle.join().expect("Error join handle.");
     }
 }

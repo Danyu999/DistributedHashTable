@@ -78,6 +78,7 @@ pub fn confirm_distributed_barrier_server(server_port: &u64, node_ips: &Vec<Ipv4
     //listen and count the number of ready messages received
     let sync_port = Arc::new(server_port.clone());
     let sync_node_ips = Arc::new(node_ips.clone());
+    println!("starting listener");
     let listener = TcpListener::bind("0.0.0.0:".to_string() + &server_port.to_string()).unwrap();
     println!("Process listening for barrier msgs on port {}", &server_port);
     let mut num_ready = 0;
@@ -101,15 +102,15 @@ pub fn confirm_distributed_barrier_server(server_port: &u64, node_ips: &Vec<Ipv4
                                 num_ready += 1;
                                 //if we have received a ready from each process in the network, we send an all ready signal
                                 if num_ready == sync_node_ips.len() {
-                                    println!("Received everybody is ready!");
+                                    //println!("Received everybody is ready!");
                                     let server_port_copy = Arc::clone(&sync_port);
                                     let node_ips_copy = Arc::clone(&sync_node_ips);
-                                    println!("Broadcasting AllReady to all processes");
+                                    //println!("Broadcasting AllReady to all processes");
                                     thread::spawn(move || { broadcast_all_barrier_message(&server_port_copy, &node_ips_copy, BarrierMessage::AllReady) });
                                 }
                             }
                             AllReady => {
-                                println!("AllReady message received");
+                                //println!("AllReady message received");
                                 num_all_ready += 1;
                                 if num_all_ready == sync_node_ips.len() {
                                     println!("Received everybody is all ready!");
@@ -135,7 +136,7 @@ pub fn confirm_distributed_barrier_server(server_port: &u64, node_ips: &Vec<Ipv4
 // Only spins after server is up and running
 pub fn handle_client_checks(port: &u64) {
     let listener = TcpListener::bind("0.0.0.0:".to_string() + &port.to_string()).unwrap();
-    println!("Process listening for client check barrier msgs on port {}", &port);
+    //println!("Process listening for client check barrier msgs on port {}", &port);
     //accept a new connection
     for stream in listener.incoming() {
         match stream {
@@ -145,7 +146,7 @@ pub fn handle_client_checks(port: &u64) {
                         match msg {
                             ClientCheck => {
                                 //barrier msg from a client. respond with OneReady msg
-                                println!("ClientCheck message received");
+                                //println!("ClientCheck message received");
                                 thread::spawn(move || { serde_json::to_writer(&stream, &BarrierMessage::OneReady).unwrap() });
                             }
                             _ => {
@@ -172,16 +173,15 @@ pub fn confirm_distributed_barrier_client(server_port: &u64, node_ips: &Vec<Ipv4
             i = 0;
             continue;
         }
-        //println!("Trying to connect to: {}" , node_ips_left[i].to_string());
         match TcpStream::connect(node_ips_left[i].to_string() + ":" + &server_port.to_string()) {
             Ok(stream) => {
-                println!("Connected to {} for client barrier!", server_port);
+                //println!("Connected to {} for client barrier!", server_port);
                 serde_json::to_writer(&stream, &msg).unwrap();
                 match read_barrier_message_from_stream(&stream) {
                     Ok(msg) => {
                         match msg {
                             OneReady => {
-                                println!("Server ack received!");
+                                //println!("Server ack received!");
                                 node_ips_left.swap_remove(i);
                             }
                             _ => {

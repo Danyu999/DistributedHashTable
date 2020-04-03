@@ -11,10 +11,11 @@ use std::thread;
 fn main() {
     let properties: Properties = get_properties();
     let mut hashtable = Arc::new(Hashtable::new(properties.dht_num_buckets));
-    let pool = ThreadPool::new(properties.dht_num_threads);
+    let _pool = ThreadPool::new(properties.dht_num_threads);
 
     // Does the distributed barrier, ensuring all servers are up and ready before continuing
     // Note: Decided thread pool was overkill for distributed barrier, so it just spawns a few threads
+    println!("Starting barrier");
     if !confirm_distributed_barrier_server(&properties.server_port, &properties.node_ips) {
         panic!("Distributed barrier for server failed!");
     }
@@ -22,8 +23,10 @@ fn main() {
     let server_client_check_port_copy = properties.server_client_check_port.clone();
 
     //spawn a thread to handle new clients that want to confirm that the server is up
+    println!("Starting handle_client_checks");
     thread::spawn(move || { handle_client_checks(&server_client_check_port_copy) });
 
     //let func = |stream| {return handle_client(stream, hashtable, &properties)}; //TODO: refactor to make the closure method work
-    accept_client(&properties.server_port, &mut hashtable, &pool);
+    println!("Starting accept_client");
+    accept_client(&properties.server_port, &mut hashtable, &_pool);
 }

@@ -13,6 +13,7 @@ pub fn handle_client(stream: TcpStream, hashtable: Arc<Hashtable<String>>) {
     loop {
         match read_request_message_from_stream(&stream) {
             Ok(msg) => {
+                //println!("Handling a message");
                 let mut response = DHTMessage::RequestFailed;
                 match msg {
                     DHTMessage::Get(key) => {
@@ -36,7 +37,7 @@ pub fn handle_client(stream: TcpStream, hashtable: Arc<Hashtable<String>>) {
     }
 }
 
-pub fn accept_client(port: &u64, hashtable: &mut Arc<Hashtable<String>>, pool: &ThreadPool) {
+pub fn accept_client(port: &u64, hashtable: &mut Arc<Hashtable<String>>, _pool: &ThreadPool) {
     let listener = TcpListener::bind("0.0.0.0:".to_string() + &port.to_string()).unwrap();
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port {}", &port);

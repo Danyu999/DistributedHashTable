@@ -41,7 +41,7 @@ struct Worker {
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || {
-            println!("Worker {} ready!", id);
+            //println!("Worker {} ready!", id);
             // Each worker repeatedly tries to receive a job, executing the job if it gets one
             loop {
                 let job = receiver.lock().unwrap().recv().unwrap();
