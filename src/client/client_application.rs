@@ -153,6 +153,6 @@ fn main() {
 
     for join_handle in join_handles {
         // println!("Main thread joining...");
-        join_handle.join();
+        join_handle.join().unwrap();
     }
 }

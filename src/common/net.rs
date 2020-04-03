@@ -2,7 +2,7 @@ use std::net::Ipv4Addr;
 use std::net::{TcpListener, TcpStream};
 use std::error::Error;
 use serde::{Serialize, Deserialize};
-use crate::common::net::BarrierMessage::{OneReady, AllReady};
+use crate::common::net::BarrierMessage::{OneReady, AllReady, ClientCheck};
 use std::thread;
 use std::sync::Arc;
 use crate::common::net::DHTMessage::{Get, Put};
@@ -143,7 +143,7 @@ pub fn handle_client_checks(port: &u64) {
                 match read_barrier_message_from_stream(&stream) {
                     Ok(msg) => {
                         match msg {
-                            BarrierMessage::ClientCheck => {
+                            ClientCheck => {
                                 //barrier msg from a client. respond with OneReady msg
                                 println!("ClientCheck message received");
                                 thread::spawn(move || { serde_json::to_writer(&stream, &BarrierMessage::OneReady).unwrap() });
@@ -166,7 +166,7 @@ pub fn handle_client_checks(port: &u64) {
 pub fn confirm_distributed_barrier_client(server_port: &u64, node_ips: &Vec<Ipv4Addr>) {
     let mut node_ips_left = node_ips.clone();
     let mut i = 0;
-    let msg = BarrierMessage::ClientCheck;
+    let msg = ClientCheck;
     while !node_ips_left.is_empty() {
         if i == node_ips_left.len() {
             i = 0;

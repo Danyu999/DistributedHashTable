@@ -53,21 +53,3 @@ pub fn accept_client(port: &u64, hashtable: &mut Arc<Hashtable<String>>, pool: &
         }
     }
 }
-
-// pub fn accept_client(hashtable: &mut Arc<Hashtable<String>>, pool: &ThreadPool) {
-//     let listener = TcpListener::bind("0.0.0.0:3333").unwrap();
-//     // accept connections and process them, spawning a new thread for each one
-//     println!("Server listening on port 3333");
-//     for stream in listener.incoming() {
-//         //println!("Connection accepted! Handling...");
-//         match stream {
-//             Ok(stream) => {
-//                 let hashtable_clone = hashtable.clone();
-//                 pool.execute(|| { handle_client(stream, hashtable_clone) });
-//                 //thread::spawn(move || { handle_client(stream, hashtable_clone, msg) });
-//                 //println!("Done handling, listening again...")
-//             }
-//             Err(e) => { println!("Error: {}", e); }
-//         }
-//     }
-// }
