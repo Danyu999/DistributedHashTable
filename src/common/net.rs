@@ -16,8 +16,8 @@ pub enum BarrierMessage {
 
 #[derive(Serialize, Deserialize)]
 pub enum DHTMessage {
-    Get(u64), //(key)
-    Put(u64, String), //(key, content)
+    Get(String), //(key)
+    Put(String, String), //(key, content)
     PhaseOneAck,
     Commit,
     Abort,
@@ -26,10 +26,14 @@ pub enum DHTMessage {
     RequestFailed,
 }
 
-pub fn get_key_from_dht_message(msg: &DHTMessage) -> u64 {
+pub fn get_key_from_dht_message(msg: &DHTMessage) -> String {
     match msg {
-        Get(key) => { *key },
-        Put(key, _) => { *key },
+        Get(key) => {
+            key.clone()
+        },
+        Put(key, _) => {
+            key.clone()
+        },
         _ => { panic!("expected Get or Put type message") }
     }
 }

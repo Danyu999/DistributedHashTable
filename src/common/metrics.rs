@@ -7,8 +7,8 @@ use std::sync::atomic::AtomicU64;
 use atomic::Atomic;
 
 pub struct Metrics {
-    pub successful_put: AtomicU64,
-    pub unsuccessful_put: AtomicU64,
+    pub put_insert: AtomicU64,
+    pub put_update: AtomicU64,
     pub some_get: AtomicU64,
     pub none_get: AtomicU64,
     pub failed_request: AtomicU64,
@@ -20,8 +20,8 @@ pub struct Metrics {
 impl Metrics {
     pub fn new() -> Metrics {
         Metrics {
-            successful_put: AtomicU64::new(0),
-            unsuccessful_put: AtomicU64::new(0),
+            put_insert: AtomicU64::new(0),
+            put_update: AtomicU64::new(0),
             some_get: AtomicU64::new(0),
             none_get: AtomicU64::new(0),
             failed_request: AtomicU64::new(0),
@@ -37,8 +37,8 @@ impl Metrics {
 pub fn print_metrics(metrics_list: Vec<Metrics>) {
     for metrics in metrics_list {
         println!("Total number of operations: {}", metrics.num_operations.load(Relaxed));
-        println!("Successful puts: {}", metrics.successful_put.load(Relaxed));
-        println!("Unsuccessful puts: {}", metrics.unsuccessful_put.load(Relaxed));
+        println!("Put inserts: {}", metrics.put_insert.load(Relaxed));
+        println!("Put updates: {}", metrics.put_update.load(Relaxed));
         println!("Some gets: {}", metrics.some_get.load(Relaxed));
         println!("None gets: {}", metrics.none_get.load(Relaxed));
         println!("Failed requests: {}", metrics.failed_request.load(Relaxed));
@@ -69,8 +69,8 @@ pub fn gather_metrics(mut metrics_list: Vec<Metrics>, metrics: Arc<Metrics>, sto
         println!("Gathering metrics...");
         let metrics_clone = Metrics::new();
         metrics_clone.total_time_elapsed.store(start.elapsed().as_micros(), Relaxed);
-        metrics_clone.successful_put.store(metrics.successful_put.load(Relaxed), Relaxed);
-        metrics_clone.unsuccessful_put.store(metrics.unsuccessful_put.load(Relaxed), Relaxed);
+        metrics_clone.put_insert.store(metrics.put_insert.load(Relaxed), Relaxed);
+        metrics_clone.put_update.store(metrics.put_update.load(Relaxed), Relaxed);
         metrics_clone.some_get.store(metrics.some_get.load(Relaxed), Relaxed);
         metrics_clone.none_get.store(metrics.none_get.load(Relaxed), Relaxed);
         metrics_clone.failed_request.store(metrics.failed_request.load(Relaxed), Relaxed);

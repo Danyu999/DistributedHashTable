@@ -14,7 +14,7 @@ use mylib::common::my_hash;
 * server_functions handles parsing the input from a client, and calling the respective server command
 **/
 
-pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, lock_table: Arc<Vec<Mutex<bool>>>, metrics: Arc<Metrics>) {
+pub fn handle_client(mut stream: TcpStream, mut hashtable: Arc<Hashtable<String>>, lock_table: Arc<Vec<Mutex<bool>>>, metrics: Arc<Metrics>) {
     let mut start_operation: Instant;
     loop {
         match read_request_message_from_stream(&stream) {
@@ -37,7 +37,7 @@ pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, l
                                     Ok(msg) => {
                                         match msg {
                                             DHTMessage::Commit => {
-                                                let val = hashtable.get(&key, &bucket_index);
+                                                let val = hashtable.get(&key, bucket_index);
                                                 let val_clone = val.clone();
                                                 response = DHTMessage::GetResponse(val);
                                                 &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
@@ -68,13 +68,41 @@ pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, l
                         }
                     }
                     DHTMessage::Put(key, val) => {
-                        match hashtable.insert(key, val) {
-                            Ok(success) => {
-                                response = DHTMessage::PutResponse(success);
+                        let bucket_index: usize = my_hash(key.as_str()) as usize % hashtable.num_buckets;
+                        match lock_table[bucket_index].try_lock() {
+                            // The lock is not taken, so we lock
+                            Ok(_) => {
+                                // Phase one locking is done, so we reply with an ack
+                                response = DHTMessage::PhaseOneAck;
                                 &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
-                                if success { metrics.successful_put.fetch_add(1, Relaxed); }
-                                else { metrics.unsuccessful_put.fetch_add(1, Relaxed); }
+
+                                //Phase two starts, we listen for a commit or abort message
+                                match read_request_message_from_stream(&stream) {
+                                    Ok(msg) => {
+                                        match msg {
+                                            DHTMessage::Commit => {
+                                                let ret = hashtable.insert(key, val, bucket_index);
+                                                let ret_clone = ret.clone();
+                                                response = DHTMessage::PutResponse(ret);
+                                                &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
+                                                if ret_clone { metrics.put_insert.fetch_add(1, Relaxed); } else { metrics.put_update.fetch_add(1, Relaxed); }
+                                            }
+                                            DHTMessage::Abort => {
+                                                response = DHTMessage::RequestFailed;
+                                                &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
+                                                metrics.failed_request.fetch_add(1, Relaxed);
+                                            }
+                                            _ => { panic!("Expected Commit or Abort request"); }
+                                        }
+                                    }
+                                    Err(_) => {
+                                        response = DHTMessage::RequestFailed;
+                                        &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
+                                        metrics.failed_request.fetch_add(1, Relaxed);
+                                    }
+                                }
                             }
+                            // The bucket lock is taken, so the request fails
                             Err(_) => {
                                 response = DHTMessage::RequestFailed;
                                 &stream.write_all(bincode::serialize(&response).unwrap().as_slice());

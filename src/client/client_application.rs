@@ -12,14 +12,16 @@ use std::io::Write;
 fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage> {
     let mut requests: Vec<DHTMessage> = Vec::new();
     let mut rng = rand::thread_rng();
+    let mut keys: Vec<String> = Vec::new();
+    for _ in key_range[0]..key_range[1] { keys.push(rng.sample_iter(&Alphanumeric).take(10).collect()); }
     let request_type_range = Uniform::from(0..5);
     let key_range_distribution = Uniform::from(key_range[0]..(key_range[1]));
     println!("Generating requests!");
     for _ in 0..*num_requests {
-        let key = key_range_distribution.sample(&mut rng);
+        let index = key_range_distribution.sample(&mut rng);
         match request_type_range.sample(&mut rng) {
-            0 | 1 | 2 => { requests.push(Get(key)); } //Get
-            _ => { requests.push(Put(key, rng.sample_iter(&Alphanumeric).take(30).collect())); } //Put
+            0 | 1 | 2 => { requests.push(Get(keys[index])); } //Get
+            _ => { requests.push(Put(keys[index], rng.sample_iter(&Alphanumeric).take(30).collect())); } //Put
         }
     }
     return requests;
