@@ -31,6 +31,7 @@ impl Hashtable<String> {
         }
     }
 
+    //TODO: move the locking part out of hashtable instead of using the locktable
     pub fn get(&self, key: &String) -> Result<Option<String>, &'static str> {
         let bucket_index: usize = my_hash(key.as_str()) as usize % self.num_buckets;
         let bucket = &self.buckets[bucket_index];

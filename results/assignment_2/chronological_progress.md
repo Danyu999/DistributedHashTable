@@ -21,5 +21,16 @@
     to record the metrics and then go back to sleep. This allows us to see how throughout changes throughout
     the handling of requests.
     
-* Moving locks outside of hashtable into a lock table. Starting to implement 2PL. Handling GET on the server-side is
-    done.
+* Implemented a lock table. Starting to implement 2PL.
+
+* Interesting note: I realized that my hash function for choosing which node each key should go to and which bucket
+    a key should go into were the same, which means that my performance from assignment 1 was likely limited by this.
+    
+* Working on implementing 2PL on client-side... 
+
+* Decided to not have servers confirm that the commit was done after receiving a commit message. If the client was able
+    to send a Commit message, then it knows that eventually the commit will actually happen on all relevant servers.
+
+
+* TODO: Use locks in hashtable instead of locktable; Implement MultiPut; Figure out method of choosing servers for
+    replication; 

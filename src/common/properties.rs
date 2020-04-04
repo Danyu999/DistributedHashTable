@@ -13,7 +13,8 @@ pub struct Properties {
     pub dht_num_buckets: usize,
     pub key_range: Vec<u64>,
     pub num_requests: u64,
-    pub num_client_threads: usize
+    pub num_client_threads: usize,
+    pub replication_degree: usize,
 }
 
 /**

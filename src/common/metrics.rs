@@ -58,6 +58,7 @@ pub fn print_metrics(metrics_list: Vec<Metrics>) {
             println!("Average time (microseconds) for system to accomplish one operation: {}",
                  metrics.total_time_operations.load(Relaxed) / metrics.num_operations.load(Relaxed) as u128);
         }
+        println!();
     }
 }
 

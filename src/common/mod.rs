@@ -2,6 +2,7 @@ use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 
 pub mod hashtable;
+pub mod locktable;
 pub mod net;
 pub mod properties;
 pub mod metrics;

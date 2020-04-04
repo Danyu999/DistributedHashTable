@@ -8,5 +8,6 @@
   "dht_num_buckets": 2000,
   "key_range": [0,1000],
   "num_requests": 100000,
-  "num_client_threads": 1
+  "num_client_threads": 8,
+  "replication_degree": 1
 }
