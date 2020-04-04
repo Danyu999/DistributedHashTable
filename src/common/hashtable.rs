@@ -14,15 +14,15 @@ impl<T> Bucket<T> {
 }
 
 pub struct Hashtable<T> {
-    num_buckets: usize,
-    buckets: Vec<Mutex<Bucket<T>>>,
+    pub num_buckets: usize,
+    buckets: Vec<Bucket<T>>,
 }
 
 impl Hashtable<String> {
     pub fn new(num_buckets: usize) -> Hashtable<String> {
         let mut buckets = Vec::with_capacity(num_buckets);
         for _ in 0..num_buckets {
-            buckets.push(Mutex::new(Bucket::new()));
+            buckets.push(Bucket::new());
         }
 
         Hashtable {
@@ -31,20 +31,14 @@ impl Hashtable<String> {
         }
     }
 
-    pub fn get(&self, key: &u64) -> Result<Option<String>, &'static str> {
-        let bucket_index: usize = my_hash(key) as usize % self.num_buckets;
+    pub fn get(&self, key: &u64, bucket_index: &usize) -> Option<String> {
         let bucket = &self.buckets[bucket_index];
-        return match bucket.try_lock() {
-            Ok(mutex_bucket) => {
-                for i in 0..mutex_bucket.contents.len() {
-                    if mutex_bucket.contents[i].0 == *key {
-                        return Ok(Some(mutex_bucket.contents[i].1.clone()));
-                    }
-                }
-                Ok(None)
+        for i in 0..bucket.contents.len() {
+            if bucket.contents[i].0 == *key {
+                return Some(bucket.contents[i].1.clone());
             }
-            Err(_) => { Err("Lock taken, request denied") }
         }
+        return None;
     }
 
     pub fn insert(&self, key: u64, val: String) -> Result<bool, &'static str> {

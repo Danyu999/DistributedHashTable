@@ -17,4 +17,9 @@
 * Improved performance by more than 2 times. Major issue was the serializing/deserializing, 
     where serde_json did not buffer when writing to a TCPStream.
     
-* Working on moving metrics recording to server-side. 
+* Moved metrics to server-side. Implemented the suggested method of having a thread wake up every now and then
+    to record the metrics and then go back to sleep. This allows us to see how throughout changes throughout
+    the handling of requests.
+    
+* Moving locks outside of hashtable into a lock table. Starting to implement 2PL. Handling GET on the server-side is
+    done.

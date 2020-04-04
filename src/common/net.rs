@@ -15,10 +15,12 @@ pub enum BarrierMessage {
 }
 
 #[derive(Serialize, Deserialize)]
-#[repr(u8)]
 pub enum DHTMessage {
     Get(u64), //(key)
     Put(u64, String), //(key, content)
+    PhaseOneAck,
+    Commit,
+    Abort,
     GetResponse(Option<String>),
     PutResponse(bool),
     RequestFailed,
