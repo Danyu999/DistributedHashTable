@@ -14,17 +14,18 @@ use mylib::common::my_hash;
 * server_functions handles parsing the input from a client, and calling the respective server command
 **/
 
-pub fn handle_client(mut stream: TcpStream, mut hashtable: Arc<Hashtable<String>>, lock_table: Arc<Vec<Mutex<bool>>>, metrics: Arc<Metrics>) {
+pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, lock_table: Arc<Vec<Mutex<bool>>>, metrics: Arc<Metrics>) {
     let mut start_operation: Instant;
     loop {
         match read_request_message_from_stream(&stream) {
             Ok(msg) => {
-                let mut response = DHTMessage::RequestFailed;
+                let mut response: DHTMessage;
                 start_operation = Instant::now();
                 match msg {
                     DHTMessage::Get(key) => {
                         // Start phase one of 2PL
-                        let bucket_index: usize = my_hash(key) as usize % hashtable.num_buckets;
+                        let bucket_index: usize = my_hash(key.as_str()) as usize % hashtable.num_buckets;
+                        println!("CHECK: bucket_index_out: {}", bucket_index);
                         match lock_table[bucket_index].try_lock() {
                             // The lock is not taken, so we lock
                             Ok(_) => {
@@ -37,38 +38,32 @@ pub fn handle_client(mut stream: TcpStream, mut hashtable: Arc<Hashtable<String>
                                     Ok(msg) => {
                                         match msg {
                                             DHTMessage::Commit => {
-                                                let val = hashtable.get(&key, bucket_index);
-                                                let val_clone = val.clone();
-                                                response = DHTMessage::GetResponse(val);
-                                                &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
-                                                if val_clone == None { metrics.some_get.fetch_add(1, Relaxed); }
-                                                else { metrics.none_get.fetch_add(1, Relaxed); }
+                                                match hashtable.get(&key) {
+                                                    Ok(val) => {
+                                                        let val_clone = val.clone();
+                                                        response = DHTMessage::GetResponse(val);
+                                                        &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
+                                                        if val_clone == None { metrics.some_get.fetch_add(1, Relaxed); }
+                                                        else { metrics.none_get.fetch_add(1, Relaxed); }
+                                                        continue;
+                                                    }
+                                                    Err(_) => {}
+                                                }
                                             }
-                                            DHTMessage::Abort => {
-                                                response = DHTMessage::RequestFailed;
-                                                &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
-                                                metrics.failed_request.fetch_add(1, Relaxed);
-                                            }
+                                            DHTMessage::Abort => {}
                                             _ => { panic!("Expected Commit or Abort request"); }
                                         }
                                     }
-                                    Err(_) => {
-                                        response = DHTMessage::RequestFailed;
-                                        &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
-                                        metrics.failed_request.fetch_add(1, Relaxed);
-                                    }
+                                    Err(_) => {}
                                 }
                             }
                             // The bucket lock is taken, so the request fails
-                            Err(_) => {
-                                response = DHTMessage::RequestFailed;
-                                &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
-                                metrics.failed_request.fetch_add(1, Relaxed);
-                            }
+                            Err(_) => {}
                         }
                     }
                     DHTMessage::Put(key, val) => {
                         let bucket_index: usize = my_hash(key.as_str()) as usize % hashtable.num_buckets;
+                        println!("CHECK: bucket_index_out: {}", bucket_index);
                         match lock_table[bucket_index].try_lock() {
                             // The lock is not taken, so we lock
                             Ok(_) => {
@@ -81,41 +76,36 @@ pub fn handle_client(mut stream: TcpStream, mut hashtable: Arc<Hashtable<String>
                                     Ok(msg) => {
                                         match msg {
                                             DHTMessage::Commit => {
-                                                let ret = hashtable.insert(key, val, bucket_index);
-                                                let ret_clone = ret.clone();
-                                                response = DHTMessage::PutResponse(ret);
-                                                &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
-                                                if ret_clone { metrics.put_insert.fetch_add(1, Relaxed); } else { metrics.put_update.fetch_add(1, Relaxed); }
+                                                match hashtable.insert(key, val) {
+                                                    Ok(ret) => {
+                                                        let ret_clone = ret.clone();
+                                                        response = DHTMessage::PutResponse(ret);
+                                                        &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
+                                                        if ret_clone { metrics.put_insert.fetch_add(1, Relaxed); } else { metrics.put_update.fetch_add(1, Relaxed); }
+                                                    }
+                                                    Err(_) => {}
+                                                }
                                             }
-                                            DHTMessage::Abort => {
-                                                response = DHTMessage::RequestFailed;
-                                                &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
-                                                metrics.failed_request.fetch_add(1, Relaxed);
-                                            }
+                                            DHTMessage::Abort => {}
                                             _ => { panic!("Expected Commit or Abort request"); }
                                         }
                                     }
-                                    Err(_) => {
-                                        response = DHTMessage::RequestFailed;
-                                        &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
-                                        metrics.failed_request.fetch_add(1, Relaxed);
-                                    }
+                                    Err(_) => {}
                                 }
                             }
                             // The bucket lock is taken, so the request fails
-                            Err(_) => {
-                                response = DHTMessage::RequestFailed;
-                                &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
-                                metrics.failed_request.fetch_add(1, Relaxed);
-                            }
+                            Err(_) => { }
                         }
                     }
                     _ => { panic!("Expected Get or Put request"); }
                 }
+                response = DHTMessage::RequestFailed;
+                &stream.write_all(bincode::serialize(&response).unwrap().as_slice());
+                metrics.failed_request.fetch_add(1, Relaxed);
                 metrics.total_time_operations.fetch_add(start_operation.elapsed().as_micros(), Relaxed);
                 metrics.num_operations.fetch_add(1, Relaxed);
             }
-            Err(e) => { println!("Connection possible closed: {}", e); return; }
+            Err(e) => { println!("Connection possibly closed: {}", e); return; }
         }
     }
 }

@@ -1,3 +1,6 @@
+use std::sync::Mutex;
+use crate::common::my_hash;
+
 struct Bucket<T> {
     contents: Vec<(String, T)>,
 }
@@ -12,14 +15,14 @@ impl<T> Bucket<T> {
 
 pub struct Hashtable<T> {
     pub num_buckets: usize,
-    buckets: Vec<Bucket<T>>,
+    buckets: Vec<Mutex<Bucket<T>>>,
 }
 
 impl Hashtable<String> {
     pub fn new(num_buckets: usize) -> Hashtable<String> {
         let mut buckets = Vec::with_capacity(num_buckets);
         for _ in 0..num_buckets {
-            buckets.push(Bucket::new());
+            buckets.push(Mutex::new(Bucket::new()));
         }
 
         Hashtable {
@@ -28,29 +31,40 @@ impl Hashtable<String> {
         }
     }
 
-    pub fn get(&self, key: &String, bucket_index: usize) -> Option<String> {
+    pub fn get(&self, key: &String) -> Result<Option<String>, &'static str> {
+        let bucket_index: usize = my_hash(key.as_str()) as usize % self.num_buckets;
         let bucket = &self.buckets[bucket_index];
-        for i in 0..bucket.contents.len() {
-            if bucket.contents[i].0 == *key {
-                return Some(bucket.contents[i].1.clone());
+        return match bucket.try_lock() {
+            Ok(mutex_bucket) => {
+                for i in 0..mutex_bucket.contents.len() {
+                    if mutex_bucket.contents[i].0 == *key {
+                        return Ok(Some(mutex_bucket.contents[i].1.clone()));
+                    }
+                }
+                Ok(None)
             }
+            Err(_) => { Err("Lock taken, request denied") }
         }
-        return None;
     }
 
-    // returns false if value already in hashtable and was updated, true if inserted
-    pub fn insert(&mut self, key: String, val: String, bucket_index: usize) -> bool {
-        let mut bucket = &mut self.buckets[bucket_index];
+    pub fn insert(&self, key: String, val: String) -> Result<bool, &'static str> {
+        let bucket_index: usize = my_hash(key.as_str()) as usize % self.num_buckets;
+        let bucket = &self.buckets[bucket_index];
+        return match bucket.try_lock() {
+            Ok(mut mutex_bucket) => {
                 // Check if the key is already in the bucket, if so, then the put fails and we return false
-                for i in 0..bucket.contents.len() {
-                    if bucket.contents[i].0 == key {
-                        bucket.contents[i].1 = val;
-                        return false;
+                for i in 0..mutex_bucket.contents.len() {
+                    if mutex_bucket.contents[i].0 == key {
+                        mutex_bucket.contents[i].1 = val;
+                        return Ok(false);
                     }
                 }
 
                 // If we reach here, that means the key doesn't exist yet, so we add it
-                bucket.contents.push((key, val));
-                return true;
+                mutex_bucket.contents.push((key, val));
+                Ok(true)
+            }
+            Err(_) => { Err("Lock taken, request denied") }
+        }
     }
 }

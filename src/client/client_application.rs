@@ -18,10 +18,11 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage
     let key_range_distribution = Uniform::from(key_range[0]..(key_range[1]));
     println!("Generating requests!");
     for _ in 0..*num_requests {
-        let index = key_range_distribution.sample(&mut rng);
+        let index= key_range_distribution.sample(&mut rng);
+        let key = keys[index as usize].clone();
         match request_type_range.sample(&mut rng) {
-            0 | 1 | 2 => { requests.push(Get(keys[index])); } //Get
-            _ => { requests.push(Put(keys[index], rng.sample_iter(&Alphanumeric).take(30).collect())); } //Put
+            0 | 1 | 2 => { requests.push(Get(key)); } //Get
+            _ => { requests.push(Put(key, rng.sample_iter(&Alphanumeric).take(30).collect())); } //Put
         }
     }
     return requests;
@@ -53,7 +54,8 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>) {
     let num_nodes = streams.len();
     while !requests.is_empty() {
         let request = requests.pop().unwrap();
-        let which_node: usize = my_hash(get_key_from_dht_message(&request)) as usize % num_nodes; //mods the key by the number of nodes
+        // We add a random salt string because the same hash is used in the hashtable, so we don't want the same mappings of keys to nodes and buckets (bad performance)
+        let which_node: usize = my_hash(get_key_from_dht_message(&request) + "random salt!") as usize % num_nodes; //mods the key by the number of nodes
 
         // send request
         &streams[which_node].write_all(bincode::serialize(&request).unwrap().as_slice());
