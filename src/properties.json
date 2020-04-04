@@ -1,12 +1,12 @@
 {
-  "node_ips_test": ["127.0.0.1"],
-  "node_ipsd": ["172.31.27.84"],
-  "node_ips": ["172.31.27.84", "172.31.16.86", "172.31.21.22"],
+  "node_ips": ["127.0.0.1"],
+  "node_ipsc": ["172.31.27.84"],
+  "node_ipsd": ["172.31.27.84", "172.31.16.86", "172.31.21.22"],
   "server_port": 3333,
   "server_client_check_port": 2222,
   "dht_num_threads": 6,
   "dht_num_buckets": 2000,
-  "key_range": [0,1],
-  "num_requests": 100,
+  "key_range": [0,1000],
+  "num_requests": 100000,
   "num_client_threads": 1
 }

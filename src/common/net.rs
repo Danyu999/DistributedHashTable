@@ -15,9 +15,10 @@ pub enum BarrierMessage {
 }
 
 #[derive(Serialize, Deserialize)]
+#[repr(u8)]
 pub enum DHTMessage {
     Get(u64), //(key)
-    Put(u64, String), //(key, sizeOfContent, content)
+    Put(u64, String), //(key, content)
     GetResponse(Option<String>),
     PutResponse(bool),
     RequestFailed,
@@ -41,10 +42,11 @@ pub fn read_barrier_message_from_stream(stream: &TcpStream) -> Result<BarrierMes
 }
 
 pub fn read_request_message_from_stream(stream: &TcpStream) -> Result<DHTMessage, Box<dyn Error>> {
-    let mut de = serde_json::Deserializer::from_reader(stream);
-    let req = DHTMessage::deserialize(&mut de)?;
-
-    Ok(req)
+    let x = bincode::deserialize_from(stream);
+    match x {
+        Ok(msg) => { Ok(msg) }
+        Err(e) => { Err(e) }
+    }
 }
 
 
@@ -78,7 +80,6 @@ pub fn confirm_distributed_barrier_server(server_port: &u64, node_ips: &Vec<Ipv4
     //listen and count the number of ready messages received
     let sync_port = Arc::new(server_port.clone());
     let sync_node_ips = Arc::new(node_ips.clone());
-    println!("starting listener");
     let listener = TcpListener::bind("0.0.0.0:".to_string() + &server_port.to_string()).unwrap();
     println!("Process listening for barrier msgs on port {}", &server_port);
     let mut num_ready = 0;
@@ -146,7 +147,7 @@ pub fn handle_client_checks(port: &u64) {
                         match msg {
                             ClientCheck => {
                                 //barrier msg from a client. respond with OneReady msg
-                                //println!("ClientCheck message received");
+                                println!("ClientCheck message received");
                                 thread::spawn(move || { serde_json::to_writer(&stream, &BarrierMessage::OneReady).unwrap() });
                             }
                             _ => {
