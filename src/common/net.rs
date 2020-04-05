@@ -15,14 +15,22 @@ pub enum BarrierMessage {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct PutRequest {
+    pub key: String,
+    pub val: String
+}
+
+#[derive(Serialize, Deserialize)]
 pub enum DHTMessage {
     Get(String), //(key)
-    Put(String, String), //(key, content)
+    Put(PutRequest), //(key, content)
+    MultiPut(Vec<PutRequest>),
     PhaseOneAck,
     Commit,
     Abort,
     GetResponse(Option<String>),
     PutResponse(bool),
+    MultiPutResponse,
     RequestFailed,
 }
 
@@ -31,8 +39,8 @@ pub fn get_key_from_dht_message(msg: &DHTMessage) -> String {
         Get(key) => {
             key.clone()
         },
-        Put(key, _) => {
-            key.clone()
+        Put(p) => {
+            p.key.clone()
         },
         _ => { panic!("expected Get or Put type message") }
     }

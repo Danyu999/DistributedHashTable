@@ -1,9 +1,9 @@
  use std::net::{TcpStream, Ipv4Addr};
 use mylib::common::properties::{Properties, get_properties};
-use mylib::common::net::{confirm_distributed_barrier_client, DHTMessage, read_request_message_from_stream, get_key_from_dht_message};
+use mylib::common::net::{confirm_distributed_barrier_client, DHTMessage, read_request_message_from_stream, get_key_from_dht_message, PutRequest};
 use rand::Rng;
 use rand::distributions::{Distribution, Uniform, Alphanumeric};
-use mylib::common::net::DHTMessage::{Get, Put, GetResponse, RequestFailed, PhaseOneAck, Commit, Abort};
+use mylib::common::net::DHTMessage::{Get, Put, MultiPut, GetResponse, RequestFailed, PhaseOneAck, Commit, Abort};
 use mylib::common::my_hash;
 use std::thread;
 use std::io::Write;
@@ -19,7 +19,10 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<u64>) -> Vec<DHTMessage
         let key= key_range_distribution.sample(&mut rng);
         match request_type_range.sample(&mut rng) {
             0 | 1 | 2 => { requests.push(Get(key.to_string())); } //Get
-            _ => { requests.push(Put(key.to_string(), rng.sample_iter(&Alphanumeric).take(30).collect())); } //Put
+            _ => { requests.push(Put(PutRequest {
+                                            key: key.to_string(),
+                                            val: rng.sample_iter(&Alphanumeric).take(30).collect()
+                                        }));} //Put
         }
     }
     return requests;
@@ -44,9 +47,22 @@ fn get_server_streams(node_ips: &Vec<Ipv4Addr>, server_port: &u64) -> Vec<TcpStr
 
 fn get_which_nodes(key: &String, num_nodes: &usize, replication_degree: &usize) -> Vec<usize> {
     // We add a random salt string because the same hash is used in the hashtable, so we don't want the same mappings of keys to nodes and buckets (bad performance)
-    let main_node = my_hash(key.to_owned() + "random salt!") as usize % *num_nodes; //mods the key by the number of nodes
-    //TODO: NOT DONE
-    return vec![main_node];
+    let mut nodes : Vec<usize> = Vec::new();
+    if replication_degree >= num_nodes {
+        for i in 0..*num_nodes {
+            nodes.push(i);
+        }
+    } else {
+        let main_node = my_hash(key.to_owned() + "random salt!") as usize % *num_nodes; //mods the key by the number of nodes
+        for i in main_node..(replication_degree + main_node + 1) {
+            if i >= *num_nodes {
+                nodes.push(i - *num_nodes);
+            } else {
+                nodes.push(i);
+            }
+        }
+    }
+    return nodes;
 }
 
 // Sends the requests to the appropriate server(s) one by one
@@ -54,13 +70,13 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, rep
     let num_nodes = streams.len();
     while !requests.is_empty() {
         let request = requests.pop().unwrap();
-        let key = get_key_from_dht_message(&request);
-        let which_nodes = get_which_nodes(&key, &num_nodes, &replication_degree);
         let mut success = false;
 
         // Handle making the request, depending on the type of request
         match request {
             Get(_) => {
+                let key = get_key_from_dht_message(&request);
+                let which_nodes = get_which_nodes(&key, &num_nodes, &replication_degree);
                 let mut node_index : usize = 0;
                 while !success {
                     if node_index == streams.len() { node_index = 0; }
@@ -81,7 +97,47 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, rep
                     }
                 }
             }
-            Put(_, _) => {
+            Put(_) => {
+                let key = get_key_from_dht_message(&request);
+                let which_nodes = get_which_nodes(&key, &num_nodes, &replication_degree);
+                while !success {
+                    // Start phase one and send a request
+                    for node in &which_nodes {
+                        streams[*node].write_all(bincode::serialize(&request).unwrap().as_slice()).unwrap();
+                    }
+
+                    // Receive acks from all the servers, abort if at least one sends RequestFailed
+                    // TODO: Reading serially instead of in parallel may be a performance slowdown
+                    let mut acks: Vec<usize> = Vec::with_capacity(which_nodes.len());
+                    for i in 0..which_nodes.len() {
+                        // Wait for and receive response from server
+                        // Note: Currently, we wait for responses from all servers before moving on, regardless of success or not
+                        match read_request_message_from_stream(&streams[which_nodes[i]]) {
+                            Ok(response) => {
+                                match response {
+                                    RequestFailed => {}
+                                    PhaseOneAck => { acks.push(i); }
+                                    _ => { panic!("Phase one client error: Expected a RequestFailed or PhaseOneAck message."); }
+                                }
+                            }
+                            Err(e) => { panic!("Error reading response: {}", e); }
+                        }
+                    }
+
+                    // Check the acks and start phase 2 if we received acks from all servers
+                    if acks.len() == which_nodes.len() {
+                        // Send commit messages to all servers
+                        for node in &which_nodes { streams[*node].write_all(bincode::serialize(&Commit).unwrap().as_slice()).unwrap(); }
+                        success = true;
+                    } else {
+                        // Send abort messages to all servers who responded with an ack
+                        // Note: Server-side, the request aborts if the server had a RequestFailed, so no need to send an abort to said servers
+                        for node in acks { streams[node].write_all(bincode::serialize(&Abort).unwrap().as_slice()).unwrap(); }
+                    }
+                }
+            }
+            MultiPut(_) => {
+
                 while !success {
                     // Start phase one and send a request
                     for node in &which_nodes {

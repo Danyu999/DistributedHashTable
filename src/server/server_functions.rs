@@ -9,7 +9,7 @@ use mylib::common::metrics::Metrics;
 use std::time::Instant;
 use std::sync::atomic::Ordering::Relaxed;
 use mylib::common::my_hash;
-use mylib::common::net::DHTMessage::{PhaseOneAck, GetResponse, PutResponse, Commit, Abort, RequestFailed, Get, Put};
+use mylib::common::net::DHTMessage::{PhaseOneAck, GetResponse, PutResponse, Commit, Abort, RequestFailed, Get, Put, MultiPut};
 use mylib::common::locktable::Locktable;
 
 /**
@@ -45,8 +45,8 @@ pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, l
                             }
                         }
                     }
-                    Put(key, val) => {
-                        let bucket_index: usize = my_hash(key.as_str()) as usize % hashtable.num_buckets;
+                    Put(p) => {
+                        let bucket_index: usize = my_hash(p.key.as_str()) as usize % hashtable.num_buckets;
                         match lock_table.locks[bucket_index].try_lock() {
                             // The lock is not taken, so we lock
                             Ok(_) => {
@@ -58,7 +58,7 @@ pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, l
                                     Ok(msg) => {
                                         match msg {
                                             Commit => {
-                                                match hashtable.insert(key, val) {
+                                                match hashtable.insert(p.key, p.val) {
                                                     Ok(ret) => {
                                                         let ret_clone = ret.clone();
                                                         // We don't need to tell the client that the put actually happened
@@ -81,7 +81,10 @@ pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, l
                             }
                         }
                     }
-                    _ => { panic!("Expected Get or Put request"); }
+                    MultiPut(puts) => {
+
+                    }
+                    _ => { panic!("Expected Get, Put or MultiPut request"); }
                 }
                 // These metrics are measured for every operation, successful or not
                 metrics.total_time_operations.fetch_add(start_operation.elapsed().as_micros(), Relaxed);
