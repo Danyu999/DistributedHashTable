@@ -30,7 +30,12 @@
 
 * Decided to not have servers confirm that the commit was done after receiving a commit message. If the client was able
     to send a Commit message, then it knows that eventually the commit will actually happen on all relevant servers.
-
-
-* TODO: Use locks in hashtable instead of locktable; Implement MultiPut; Figure out method of choosing servers for
-    replication; 
+    
+* I realized that the locktable is unneccessary as I worked more with it and the hashtable. Instead of making and using
+    a locktable, I can lock the locks in the hashtable from outside the hashtable and then do my operations. However,
+    I will leave it with the locktable since it's nice to separate the two.
+    
+* For the MultiPuts, I decided that the client will only send each server the put requests relevant to the server.
+    I did this to follow the previous pattern where only my client decided which keys went to which server and the
+    server simply handled whatever was sent to it. Also, I don't have a clear way of having a server identify which
+    number server it is unless I compare its IP with the list of node IPs.

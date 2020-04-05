@@ -15,6 +15,7 @@ pub struct Properties {
     pub num_requests: u64,
     pub num_client_threads: usize,
     pub replication_degree: usize,
+    pub multi_put_num: usize
 }
 
 /**

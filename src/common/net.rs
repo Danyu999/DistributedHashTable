@@ -20,6 +20,14 @@ pub struct PutRequest {
     pub val: String
 }
 
+impl Clone for PutRequest {
+    fn clone(&self) -> PutRequest {
+        let key = self.key.clone();
+        let val = self.val.clone();
+        PutRequest {key, val}
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub enum DHTMessage {
     Get(String), //(key)
