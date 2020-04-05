@@ -39,3 +39,6 @@
     I did this to follow the previous pattern where only my client decided which keys went to which server and the
     server simply handled whatever was sent to it. Also, I don't have a clear way of having a server identify which
     number server it is unless I compare its IP with the list of node IPs.
+    
+* MultiPut fully implemented on client and server. I did something really interesting with MultiPut, where it is scalable
+    to have n number of Put operations per MultiPut, configurable through properties.json.

@@ -225,6 +225,16 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, rep
 fn client_process(thread_num: &usize, properties: &Properties) {
     // Generate num_requests number of requests randomly
     let requests = generate_requests(&properties.num_requests, &properties.key_range, &properties.multi_put_num);
+    // let mut requests = Vec::new();
+    // let mut multi_put : Vec<PutRequest> = Vec::new();
+    // for i in 0..properties.multi_put_num {
+    //     let key= i;
+    //     multi_put.push(PutRequest {
+    //         key: key.to_string(),
+    //         val: String::from("test")
+    //     });
+    // }
+    // requests.push(MultiPut(multi_put));
 
     // Establish persistent connections with all the servers
     let streams = get_server_streams(&properties.node_ips, &properties.server_port);

@@ -11,6 +11,7 @@ pub struct Metrics {
     pub put_update: AtomicU64,
     pub some_get: AtomicU64,
     pub none_get: AtomicU64,
+    pub multi_put: AtomicU64,
     pub failed_request: AtomicU64,
     pub num_operations: AtomicU64,
     pub total_time_operations: Atomic<u128>,
@@ -24,6 +25,7 @@ impl Metrics {
             put_update: AtomicU64::new(0),
             some_get: AtomicU64::new(0),
             none_get: AtomicU64::new(0),
+            multi_put: AtomicU64::new(0),
             failed_request: AtomicU64::new(0),
             num_operations: AtomicU64::new(0),
             total_time_operations: Atomic::new(0),
@@ -37,10 +39,12 @@ impl Metrics {
 pub fn print_metrics(metrics_list: Vec<Metrics>) {
     for metrics in metrics_list {
         println!("Total number of operations: {}", metrics.num_operations.load(Relaxed));
+        println!("Total time elapsed: {} seconds", metrics.total_time_elapsed.load(Relaxed) as f64 / 1000000 as f64);
         println!("Put inserts: {}", metrics.put_insert.load(Relaxed));
         println!("Put updates: {}", metrics.put_update.load(Relaxed));
         println!("Some gets: {}", metrics.some_get.load(Relaxed));
         println!("None gets: {}", metrics.none_get.load(Relaxed));
+        println!("Multi puts: {}", metrics.multi_put.load(Relaxed));
         println!("Failed requests: {}", metrics.failed_request.load(Relaxed));
         println!("Total send_requests time: {} seconds",
                  metrics.total_time_operations.load(Relaxed) as f64 / 1000000 as f64);
@@ -52,10 +56,10 @@ pub fn print_metrics(metrics_list: Vec<Metrics>) {
                  metrics.num_operations.load(Relaxed) as f64 / (metrics.total_time_operations.load(Relaxed) as f64 / 1000000 as f64));
         }
         if metrics.num_operations.load(Relaxed) == 0 {
-            println!("Average time (microseconds) for system to accomplish one operation: N/A");
+            println!("Average time for system to accomplish one operation: N/A");
         }
         else {
-            println!("Average time (microseconds) for system to accomplish one operation: {}",
+            println!("Average time for system to accomplish one operation: {} microseconds",
                  metrics.total_time_operations.load(Relaxed) / metrics.num_operations.load(Relaxed) as u128);
         }
         println!();
@@ -74,6 +78,7 @@ pub fn gather_metrics(mut metrics_list: Vec<Metrics>, metrics: Arc<Metrics>, sto
         metrics_clone.put_update.store(metrics.put_update.load(Relaxed), Relaxed);
         metrics_clone.some_get.store(metrics.some_get.load(Relaxed), Relaxed);
         metrics_clone.none_get.store(metrics.none_get.load(Relaxed), Relaxed);
+        metrics_clone.multi_put.store(metrics.multi_put.load(Relaxed), Relaxed);
         metrics_clone.failed_request.store(metrics.failed_request.load(Relaxed), Relaxed);
         metrics_clone.num_operations.store(metrics.num_operations.load(Relaxed), Relaxed);
         metrics_clone.total_time_operations.store(metrics.total_time_operations.load(Relaxed), Relaxed);
