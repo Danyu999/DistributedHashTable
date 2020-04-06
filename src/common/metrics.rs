@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::AtomicU64;
 use atomic::Atomic;
+use std::fs::OpenOptions;
+use std::io::Write;
 
 pub struct Metrics {
     pub put_insert: AtomicU64,
@@ -66,11 +68,49 @@ pub fn print_metrics(metrics_list: Vec<Metrics>) {
     }
 }
 
+fn print_metrics_file(metrics: &Metrics) -> String {
+    let mut res = String::new();
+    // res.push_str("Total number of operations: ");
+    // res.push_str(metrics.num_operations.load(Relaxed).to_string().as_ref());
+    // res.push_str("\n");
+    // res.push_str("Total time elapsed: ");
+    res.push_str((metrics.total_time_elapsed.load(Relaxed) as f64 / 1000000 as f64).to_string().as_ref());
+    res.push_str("\n");
+    // res += "Put inserts: " + metrics.put_insert.load(Relaxed) + "\n";
+    // res += "Put updates: " + metrics.put_update.load(Relaxed) + "\n";
+    // res += "Some gets: " + metrics.some_get.load(Relaxed) + "\n";
+    // res += "None gets: " + metrics.none_get.load(Relaxed) + "\n";
+    // res += "Multi puts: " + metrics.multi_put.load(Relaxed) + "\n";
+    // res.push_str("Failed requests: ");
+    // res.push_str(metrics.failed_request.load(Relaxed).to_string().as_ref());
+    // res.push_str("\n");
+    // res.push_str("Total send_requests time: ");
+    // res.push_str((metrics.total_time_operations.load(Relaxed) as f64 / 1000000 as f64).to_string().as_ref());
+    // res.push_str("\n");
+    if metrics.total_time_operations.load(Relaxed) == 0 {
+        res += "N/A\n";
+    }
+    else {
+        // res.push_str("Average number of operations per second: ");
+        res.push_str((metrics.num_operations.load(Relaxed) as f64 / (metrics.total_time_operations.load(Relaxed) as f64 / 1000000 as f64)).to_string().as_ref());
+        res.push_str("\n");
+    }
+    if metrics.num_operations.load(Relaxed) == 0 {
+        res += "N/A\n";
+    }
+    else {
+        // res.push_str("Average time for system to accomplish one operation: ");
+        res.push_str((metrics.total_time_operations.load(Relaxed) / metrics.num_operations.load(Relaxed) as u128).to_string().as_ref());
+        res.push_str("\n\n");
+    }
+    return res;
+}
+
 // Wakes up every now and then to gather metrics
 pub fn gather_metrics(mut metrics_list: Vec<Metrics>, metrics: Arc<Metrics>, stop_server: Arc<AtomicBool>, stop_server_followup_clone: Arc<AtomicBool>) {
     let start = Instant::now();
     loop {
-        sleep(Duration::new(5,0));
+        sleep(Duration::new(20,0));
         println!("Gathering metrics...");
         let metrics_clone = Metrics::new();
         metrics_clone.total_time_elapsed.store(start.elapsed().as_micros(), Relaxed);
@@ -82,7 +122,14 @@ pub fn gather_metrics(mut metrics_list: Vec<Metrics>, metrics: Arc<Metrics>, sto
         metrics_clone.failed_request.store(metrics.failed_request.load(Relaxed), Relaxed);
         metrics_clone.num_operations.store(metrics.num_operations.load(Relaxed), Relaxed);
         metrics_clone.total_time_operations.store(metrics.total_time_operations.load(Relaxed), Relaxed);
+
+        // Append to a file
+        let mut file = OpenOptions::new().append(true).open("metrics.txt").unwrap();
+        file.write_all(print_metrics_file(&metrics_clone).as_bytes()).unwrap();
+
         metrics_list.push(metrics_clone);
+
+
 
         // If a stop_server signal has been sent, we print the metrics and crash the server
         if stop_server.load(Relaxed) {

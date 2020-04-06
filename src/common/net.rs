@@ -3,9 +3,11 @@ use std::net::{TcpListener, TcpStream};
 use std::error::Error;
 use serde::{Serialize, Deserialize};
 use crate::common::net::BarrierMessage::{OneReady, AllReady, ClientCheck};
-use std::thread;
+use std::{thread, fmt};
 use std::sync::Arc;
 use crate::common::net::DHTMessage::{Get, Put};
+use std::io::Write;
+use std::fmt::{Display, Formatter};
 
 #[derive(Serialize, Deserialize)]
 pub enum BarrierMessage {
@@ -42,6 +44,23 @@ pub enum DHTMessage {
     RequestFailed,
 }
 
+impl Display for DHTMessage {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            DHTMessage::Get(_) => { write!(f, "Get") }
+            DHTMessage::Put(_) => {write!(f, "Put")}
+            DHTMessage::MultiPut(_) => {write!(f, "MultiPut")}
+            DHTMessage::PhaseOneAck => {write!(f, "PhaseOneAck")}
+            DHTMessage::Commit => {write!(f, "Commit")}
+            DHTMessage::Abort => {write!(f, "Abort")}
+            DHTMessage::GetResponse(_) => {write!(f, "GetResponse")}
+            DHTMessage::PutResponse(_) => {write!(f, "PutResponse")}
+            DHTMessage::MultiPutResponse => {write!(f, "MultiPutResponse")}
+            DHTMessage::RequestFailed => {write!(f, "RequestFailed")}
+        }
+    }
+}
+
 pub fn get_key_from_dht_message(msg: &DHTMessage) -> String {
     match msg {
         Get(key) => {
@@ -63,12 +82,31 @@ pub fn read_barrier_message_from_stream(stream: &TcpStream) -> Result<BarrierMes
     Ok(req)
 }
 
-pub fn read_request_message_from_stream(stream: &TcpStream) -> Result<DHTMessage, Box<dyn Error>> {
-    let x = bincode::deserialize_from(stream);
-    match x {
+pub fn read_request_message_from_stream(stream: &mut TcpStream) -> Result<DHTMessage, Box<dyn Error>> {
+    // let mut buf_size = [0; 8];
+    // stream.read_exact(&mut buf_size);
+    // let size = u64::from_le_bytes(buf_size);
+    // println!("got u64: {}", size);
+    // // let mut buf_msg = [0; size];
+    // let mut buf_msg : Vec<u8> = Vec::with_capacity(size as usize);
+    // stream.read_exact(buf_msg.as_mut());
+    // println!("got msg");
+    //
+    // // serde_bytes::deserialize(&buf_msg);
+    // match bincode::deserialize(&buf_msg) {
+    //     Ok(msg) => { println!("ok"); Ok(msg) }
+    //     Err(e) => { println!("err"); Err(e) }
+    // }
+
+    match  bincode::deserialize_from(stream) {
         Ok(msg) => { Ok(msg) }
         Err(e) => { Err(e) }
     }
+}
+
+pub fn write_dht_message_to_stream(stream: &mut TcpStream, msg: &DHTMessage) {
+    let buf = bincode::serialize(msg).unwrap();
+    stream.write_all(buf.as_slice()).unwrap();
 }
 
 

@@ -1,13 +1,12 @@
 {
-  "node_ips": ["127.0.0.1"],
-  "node_ipsc": ["172.31.27.84"],
-  "node_ipsd": ["172.31.27.84", "172.31.16.86", "172.31.21.22"],
+  "node_ipsa": ["127.0.0.1"],
+  "node_ips": ["172.31.28.246", "172.31.28.25", "172.31.31.199", "172.31.22.197", "172.31.26.4"],
   "server_port": 3333,
   "server_client_check_port": 2222,
   "dht_num_threads": 6,
   "dht_num_buckets": 2000,
-  "key_range": [0,1000],
-  "num_requests": 100000,
+  "key_range": [0,10000],
+  "num_requests": 10000,
   "num_client_threads": 8,
   "replication_degree": 2,
   "multi_put_num": 3

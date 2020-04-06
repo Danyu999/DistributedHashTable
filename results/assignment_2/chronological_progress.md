@@ -31,7 +31,7 @@
 * Decided to not have servers confirm that the commit was done after receiving a commit message. If the client was able
     to send a Commit message, then it knows that eventually the commit will actually happen on all relevant servers.
     
-* I realized that the locktable is unneccessary as I worked more with it and the hashtable. Instead of making and using
+* I realized that the locktable is unnecessary as I worked more with it and the hashtable. Instead of making and using
     a locktable, I can lock the locks in the hashtable from outside the hashtable and then do my operations. However,
     I will leave it with the locktable since it's nice to separate the two.
     
@@ -42,3 +42,17 @@
     
 * MultiPut fully implemented on client and server. I did something really interesting with MultiPut, where it is scalable
     to have n number of Put operations per MultiPut, configurable through properties.json.
+    
+* Currently have a weird issue where the client slows down a lot for some operations, but not others on AWS. Appears to
+    work fine locally.
+    
+* When attempting to run with multiple servers, there are communication errors between clients and servers. Still
+    in the process of debugging. UPDATE: Errors were due to improper handling of stream index in the Put
+    code client-side. 
+
+* Everything now works as per assignment 2. However, the previously mentioned issue where reads sometimes
+    take a really long time (but not always) is still prevalent and prevents me from testing with too
+    many operations (since it won't finish for a long time).
+    
+* Occasionally, the throughput/latency/total_elapsed_time recorded from two different server nodes would be exactly 
+    the same. Not sure why/how this happens.
