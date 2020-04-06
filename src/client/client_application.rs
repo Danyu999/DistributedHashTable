@@ -76,6 +76,7 @@ fn get_which_nodes(key: &String, num_nodes: &usize, replication_degree: &usize) 
         for i in 0..*num_nodes {
             nodes.push(i);
         }
+        return nodes;
     } else {
         let main_node = my_hash((key.to_string() + "random salt!").as_str()) as usize % *num_nodes; //mods the key by the number of nodes
         for i in main_node..(replication_degree + main_node) {
@@ -85,9 +86,9 @@ fn get_which_nodes(key: &String, num_nodes: &usize, replication_degree: &usize) 
                 nodes.push(i);
             }
         }
+        assert_eq!(*replication_degree, nodes.len());
+        return nodes;
     }
-    assert_eq!(*replication_degree, nodes.len());
-    return nodes;
 }
 
 // Sends the requests to the appropriate server(s) one by one
