@@ -70,9 +70,9 @@ pub fn print_metrics(metrics_list: Vec<Metrics>) {
 
 fn print_metrics_file(metrics: &Metrics) -> String {
     let mut res = String::new();
-    // res.push_str("Total number of operations: ");
-    // res.push_str(metrics.num_operations.load(Relaxed).to_string().as_ref());
-    // res.push_str("\n");
+    res.push_str("Total number of operations: ");
+    res.push_str(metrics.num_operations.load(Relaxed).to_string().as_ref());
+    res.push_str("\n");
     // res.push_str("Total time elapsed: ");
     res.push_str((metrics.total_time_elapsed.load(Relaxed) as f64 / 1000000 as f64).to_string().as_ref());
     res.push_str("\n");
@@ -82,8 +82,8 @@ fn print_metrics_file(metrics: &Metrics) -> String {
     // res += "None gets: " + metrics.none_get.load(Relaxed) + "\n";
     // res += "Multi puts: " + metrics.multi_put.load(Relaxed) + "\n";
     // res.push_str("Failed requests: ");
-    // res.push_str(metrics.failed_request.load(Relaxed).to_string().as_ref());
-    // res.push_str("\n");
+    res.push_str(metrics.failed_request.load(Relaxed).to_string().as_ref());
+    res.push_str("\n");
     // res.push_str("Total send_requests time: ");
     // res.push_str((metrics.total_time_operations.load(Relaxed) as f64 / 1000000 as f64).to_string().as_ref());
     // res.push_str("\n");
@@ -110,7 +110,7 @@ fn print_metrics_file(metrics: &Metrics) -> String {
 pub fn gather_metrics(mut metrics_list: Vec<Metrics>, metrics: Arc<Metrics>, stop_server: Arc<AtomicBool>, stop_server_followup_clone: Arc<AtomicBool>) {
     let start = Instant::now();
     loop {
-        sleep(Duration::new(20,0));
+        sleep(Duration::new(10,0));
         println!("Gathering metrics...");
         let metrics_clone = Metrics::new();
         metrics_clone.total_time_elapsed.store(start.elapsed().as_micros(), Relaxed);
@@ -124,12 +124,12 @@ pub fn gather_metrics(mut metrics_list: Vec<Metrics>, metrics: Arc<Metrics>, sto
         metrics_clone.total_time_operations.store(metrics.total_time_operations.load(Relaxed), Relaxed);
 
         // Append to a file
+        // let t = Instant::now();
         let mut file = OpenOptions::new().append(true).open("metrics.txt").unwrap();
         file.write_all(print_metrics_file(&metrics_clone).as_bytes()).unwrap();
+        // println!("file time: {}", t.elapsed().as_micros());
 
         metrics_list.push(metrics_clone);
-
-
 
         // If a stop_server signal has been sent, we print the metrics and crash the server
         if stop_server.load(Relaxed) {

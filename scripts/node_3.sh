@@ -1,7 +1,10 @@
 #!/bin/sh
 echo "Running node 3..."
-ssh -tt -i ../CSE403_Project.pem ubuntu@ec2-54-83-178-111.compute-1.amazonaws.com << EOF
+ssh -tt -i ../CSE403_Project.pem ubuntu@ec2-3-88-99-222.compute-1.amazonaws.com << EOF
   cd DistributedHashTable
-  cargo run --bin client_application &
   cargo run --bin dht_server &
+  cargo run --bin client_application
+  sleep 10s
+  killall dht_server
+  exit
 EOF

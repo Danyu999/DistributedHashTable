@@ -98,7 +98,7 @@ pub fn read_request_message_from_stream(stream: &mut TcpStream) -> Result<DHTMes
     //     Err(e) => { println!("err"); Err(e) }
     // }
 
-    match  bincode::deserialize_from(stream) {
+    match bincode::deserialize_from(stream) {
         Ok(msg) => { Ok(msg) }
         Err(e) => { Err(e) }
     }

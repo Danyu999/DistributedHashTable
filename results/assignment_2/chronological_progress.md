@@ -44,7 +44,9 @@
     to have n number of Put operations per MultiPut, configurable through properties.json.
     
 * Currently have a weird issue where the client slows down a lot for some operations, but not others on AWS. Appears to
-    work fine locally.
+    work fine locally. UPDATE: The issue appears to be because the client makes 2 writes to the connection before the
+    server has a chance to read once (due to not waiting for the server confirm that a Commit was actually done), which
+    causes the deserializer to perform extremely inefficiently.
     
 * When attempting to run with multiple servers, there are communication errors between clients and servers. Still
     in the process of debugging. UPDATE: Errors were due to improper handling of stream index in the Put
@@ -55,4 +57,14 @@
     many operations (since it won't finish for a long time).
     
 * Occasionally, the throughput/latency/total_elapsed_time recorded from two different server nodes would be exactly 
-    the same. Not sure why/how this happens.
+    the same. Not sure why/how this happens. UPDATE: It is an issue with CLion not properly copying files from the
+    remote instances.
+    
+* Exponential backoff for when a request fails due to not being able to acquire the locks is implemented. There is a 
+    noticeable increase in performance.
+    
+* Made the exponential backoff's base "sleep" top_range be relative to the key range. The smaller the key range,
+    the relatively longer a client thread will sleep when it receives a failed request response.
+    
+* The run_dht_aws.sh script now properly cleans up the server process on each aws instance and the ssh connections
+    locally.

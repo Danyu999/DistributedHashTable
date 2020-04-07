@@ -21,11 +21,9 @@ use std::collections::HashSet;
 fn multi_put_helper(mut stream: &mut TcpStream, hashtable: Arc<Hashtable<String>>, lock_table: Arc<Locktable>, num_buckets: &usize,
                     puts: Vec<PutRequest>, lock_progress: usize, mut prev_buckets: HashSet<usize>) -> DHTMessage {
     // We recursively try to acquire the locks for each put operation, then continues the 2PL while holding all locks
-    // println!("Entering multi_put_helper {}...", lock_progress);
     return if lock_progress == puts.len() {
         // We continue the operation since we have all the locks
         // Phase one locking is done, so we reply with an ack
-        // serde_json::to_writer(stream.try_clone().unwrap(), &PhaseOneAck).unwrap();
         write_dht_message_to_stream(&mut stream, &PhaseOneAck);
         match read_request_message_from_stream(&mut stream) {
             Ok(msg) => {
@@ -37,6 +35,9 @@ fn multi_put_helper(mut stream: &mut TcpStream, hashtable: Arc<Hashtable<String>
                                 Err(_) => { panic!("Lock acquired, but failed to get lock in hashtable!"); }
                             }
                         }
+                        // let t4 = Instant::now();
+                        write_dht_message_to_stream(&mut stream, &Commit);
+                        // println!("server write commit: {}", t4.elapsed().as_micros());
                         Commit
                     }
                     Abort => { Abort }
@@ -67,14 +68,23 @@ fn multi_put_helper(mut stream: &mut TcpStream, hashtable: Arc<Hashtable<String>
 
 pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, lock_table: Arc<Locktable>, metrics: Arc<Metrics>) {
     let mut start_operation: Instant;
+    let mut failed_op_time = 0;
+    let mut success = true;
     loop {
-        // let t1 = Instant::now();
-        match read_request_message_from_stream(&mut stream) {
+        let read_op_time = Instant::now();
+        let message = match bincode::deserialize_from(&stream) {
+            Ok(msg) => { Ok(msg) }
+            Err(e) => { Err(e) }
+        };
+        // If the previous op failed, that means this op will be a retry, so we want to count the time it takes to read
+        if !success { failed_op_time += read_op_time.elapsed().as_micros(); }
+        success = true;
+        match message {
             Ok(msg) => {
                 start_operation = Instant::now();
                 match msg {
                     Get(key) => {
-                        // println!("t1 get: {}", t1.elapsed().as_micros());
+                        // println!("Read get: {}", t1.elapsed().as_micros());
                         // Get request, so we don't do 2PL
                         let bucket_index: usize = my_hash(key.as_str()) as usize % hashtable.num_buckets;
                         match lock_table.locks[bucket_index].try_lock() {
@@ -83,8 +93,9 @@ pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, l
                                 match hashtable.get(&key) {
                                     Ok(val) => {
                                         let val_clone = val.clone();
-                                        // serde_json::to_writer(&stream, &GetResponse(val)).unwrap();
+                                        // let t4 = Instant::now();
                                         write_dht_message_to_stream(&mut stream, &GetResponse(val));
+                                        // println!("server write get: {}", t4.elapsed().as_micros());
                                         if val_clone == None { metrics.some_get.fetch_add(1, Relaxed); }
                                         else { metrics.none_get.fetch_add(1, Relaxed); }
                                     }
@@ -92,37 +103,43 @@ pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, l
                                 }
                             }
                             Err(_) => {
-                                // serde_json::to_writer(&stream, &RequestFailed).unwrap();
                                 write_dht_message_to_stream(&mut stream, &RequestFailed);
                                 metrics.failed_request.fetch_add(1, Relaxed);
+                                success = false;
                             }
                         }
                     }
                     Put(p) => {
-                        // println!("t1 put: {}", t1.elapsed().as_micros());
+                        // println!("server read put: {}", t1.elapsed().as_micros());
                         let bucket_index: usize = my_hash(p.key.as_str()) as usize % hashtable.num_buckets;
                         match lock_table.locks[bucket_index].try_lock() {
                             // The lock is not taken, so we lock
                             Ok(_) => {
                                 // Phase one locking is done, so we reply with an ack
-                                // serde_json::to_writer(&stream, &PhaseOneAck).unwrap();
+                                // let t2 = Instant::now();
                                 write_dht_message_to_stream(&mut stream, &PhaseOneAck);
+                                // println!("server write get: {}", t2.elapsed().as_micros());
 
                                 //Phase two starts, we listen for a commit or abort message
                                 match read_request_message_from_stream(&mut stream) {
                                     Ok(msg) => {
+                                        // println!("server read commit/abort get: {}", t3.elapsed().as_micros());
                                         match msg {
                                             Commit => {
                                                 match hashtable.insert(p.key, p.val) {
                                                     Ok(ret) => {
                                                         let ret_clone = ret.clone();
-                                                        // We don't need to tell the client that the put actually happened, so we just update metrics and move on
+                                                        // let t4 = Instant::now();
+                                                        write_dht_message_to_stream(&mut stream, &Commit);
+                                                        // println!("server write commit: {}", t4.elapsed().as_micros());
                                                         if ret_clone { metrics.put_insert.fetch_add(1, Relaxed); } else { metrics.put_update.fetch_add(1, Relaxed); }
                                                     }
                                                     Err(_) => { panic!("Lock acquired, but failed to get lock in hashtable!"); }
                                                 }
                                             }
-                                            Abort => { metrics.failed_request.fetch_add(1, Relaxed); }
+                                            Abort => {
+                                                metrics.failed_request.fetch_add(1, Relaxed);
+                                            }
                                             m => { panic!("Expected Commit or Abort request, instead got: {}", m); }
                                         }
                                     }
@@ -130,9 +147,9 @@ pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, l
                                 }
                             }
                             Err(_) => {
-                                // serde_json::to_writer(&stream, &RequestFailed).unwrap();
                                 write_dht_message_to_stream(&mut stream, &RequestFailed);
                                 metrics.failed_request.fetch_add(1, Relaxed);
+                                success = false;
                             }
                         }
                     }
@@ -144,18 +161,23 @@ pub fn handle_client(mut stream: TcpStream, hashtable: Arc<Hashtable<String>>, l
                             Commit => { metrics.multi_put.fetch_add(1, Relaxed); }
                             Abort => { metrics.failed_request.fetch_add(1, Relaxed); }
                             RequestFailed => {
-                                // serde_json::to_writer(&stream, &RequestFailed).unwrap();
                                 write_dht_message_to_stream(&mut stream, &RequestFailed);
                                 metrics.failed_request.fetch_add(1, Relaxed);
+                                success = false;
                             }
                             _ => { panic!("multi_put_helper() function returned something unexpected!"); }
                         }
                     }
                     m => { panic!("Expected Get, Put or MultiPut request, got: {} ", m); }
                 }
-                // These metrics are measured for every operation, successful or not
-                metrics.total_time_operations.fetch_add(start_operation.elapsed().as_micros(), Relaxed);
-                metrics.num_operations.fetch_add(1, Relaxed);
+                // These metrics are measured for every operation, successful or not. We accumulate failed attempts at the same operation
+                if success {
+                    metrics.total_time_operations.fetch_add(start_operation.elapsed().as_micros() + failed_op_time, Relaxed);
+                    metrics.num_operations.fetch_add(1, Relaxed);
+                    failed_op_time = 0;
+                } else {
+                    failed_op_time += start_operation.elapsed().as_micros();
+                }
             }
             Err(_e) => { /*println!("Connection possibly closed server-side: {}", e);*/ return; }
         }

@@ -4,12 +4,6 @@
     (~300-900Mb/s) network performance. All instances were hosted in the same region, us-east-1a.
 
 ##### Observations/Notes
-* Should failed requests be counted as an operation and be included in the calculations for throughput and latency?
-    I did, but that ended up making the runs with smaller key ranges have very good throughput/latency relative to
-    the larger key ranges because there are more collisions and failed requests. Failed requests tend to take a lot
-    less time server-side, which boosted the throughput/latency numbers. If failed requests were not counted, I suspect
-    the graphs would look like mirror images of themselves.
-    
 * Implemented MultiPut in a scalable way. You can modify how many puts you want to do in one multi-put in the properties
     file. Interesting to implement, ended up using a recursive function to acquire the necessary locks.
     
@@ -18,13 +12,14 @@
     startup and gradually speed up as the test went on.
     
 * Persistent connections was implemented, which made a huge change in performance for the assignment 1 version of the DHT.
-    Performance increase by ~10 times.
 
-* I had a weird bug where locally on Windows, the DHT's networking speeds were consistent
-    and fine. However, on the linux instances on AWS, the reading from a stream would sometimes,
-    not always, take extremely long (~40000 microseconds). Due to the structure of the DHT,
-    server throughput was not affected, but communication of operations between client and server
-    would take very long, making executing many operations very time consuming.
+* Implemented exponential backoff in a dynamic way. The amount of initial time that the client thread sleeps when it
+    it has a request fails goes up when there is a smaller key range. In other words, smaller key range means bigger
+    initial sleep time. By doing this, I was able to improve throughput/latency by a significant amount.
+
+* Changed the number of buckets the hashtable has to be based off of the key range. The number of buckets is now always
+    twice the number of keys. I choose twice (which is likely overkill), because performance is more of a concern to me
+    than memory usage.
 
 ##### Charts
 ![Latency](DHT_Average_Latency_with_5_Nodes.png)

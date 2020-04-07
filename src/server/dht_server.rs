@@ -13,7 +13,8 @@ use mylib::common::metrics::{Metrics, gather_metrics};
 
 fn main() {
     let properties: Properties = get_properties();
-    let mut hashtable = Arc::new(Hashtable::new(properties.dht_num_buckets));
+    let num_buckets : usize = ((properties.key_range[1] - properties.key_range[0]) * 2) as usize;
+    let mut hashtable = Arc::new(Hashtable::new(num_buckets));
     let _pool = ThreadPool::new(properties.dht_num_threads);
 
     // Does the distributed barrier, ensuring all servers are up and ready before continuing

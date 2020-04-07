@@ -9,14 +9,16 @@ use std::thread;
  use std::collections::HashMap;
  use std::thread::sleep;
  use std::time::Duration;
+ use std::cmp::{min, max};
 
  // Generates and returns num_requests number of Get/Put requests randomly within the given key_range
-fn generate_requests(num_requests: &u64, key_range: &Vec<u64>, multi_put_num: &usize) -> Vec<DHTMessage> {
+fn generate_requests(num_requests: &u64, key_range: &Vec<usize>, multi_put_num: &usize) -> Vec<DHTMessage> {
+    assert_eq!(2, key_range.len());
     let mut requests: Vec<DHTMessage> = Vec::new();
     let mut rng = rand::thread_rng();
     let request_type_range = Uniform::from(0..5);
     let key_range_distribution = Uniform::from(key_range[0]..(key_range[1]));
-    println!("Generating requests!");
+    // println!("Generating requests!");
     for _ in 0..*num_requests {
 
         match request_type_range.sample(&mut rng) {
@@ -91,18 +93,42 @@ fn get_which_nodes(key: &String, num_nodes: &usize, replication_degree: &usize) 
     }
 }
 
+//Exponential backoff with jitter
+//Source: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+ fn exponential_backoff(attempt: u32, workload_config: u128) {
+    //The cap of how long we sleep for exponential backoff
+    let cap : u128 = 15000000000; // 15 seconds
+    let base : u128 = max(10000000, 125000000 - (25000000 * workload_config)); // 100 milliseconds for 10 key range, 50 milliseconds for 1000 key range
+    let mut rng = rand::thread_rng();
+    let mut top_range = cap;
+    match u128::checked_pow(2, attempt) {
+        Some(val1) => {
+            match u128::checked_mul(base, val1) {
+                Some(val2) => { top_range = val2; }
+                None => {}
+            }
+        }
+        None => {}
+    }
+    let sleep_time = rng.gen_range(0, min(cap, top_range));
+    // println!("exp_backoff time: {}", sleep_time);
+    sleep(Duration::new(0, sleep_time as u32));
+}
+
 // Sends the requests to the appropriate server(s) one by one
-fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, replication_degree: &usize) {
+fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _num_client_threads: &usize, key_range: &usize, replication_degree: &usize) {
     let num_nodes = streams.len();
+    // let workload_config = num_client_threads * num_nodes * requests.len() * replication_degree;
+    let workload_config : u128 = (*key_range as f64).log10() as u128; //10 -> 1, 100 -> 2, 1000 -> 3, 10000 -> 4
     while !requests.is_empty() {
         // let start_operation: Instant = Instant::now();
         let request = requests.pop().unwrap();
         let mut success = false;
+        // println!();
 
         // Handle making the request, depending on the type of request
         match request {
             Get(_) => {
-                // println!("Get");
                 let key = get_key_from_dht_message(&request);
                 let which_nodes = get_which_nodes(&key, &num_nodes, &replication_degree);
                 let mut node_index : usize = 0;
@@ -111,9 +137,8 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, rep
 
                     // send request
                     // let t1 = Instant::now();
-                    // serde_json::to_writer(&streams[which_nodes[node_index]], &request).unwrap();
                     write_dht_message_to_stream(&mut streams[which_nodes[node_index]], &request);
-                    // println!("t1: {}", t1.elapsed().as_micros());
+                    // println!("client get write: {}", t1.elapsed().as_micros());
 
                     // wait for and receive response from server
                     // let t2 = Instant::now();
@@ -127,21 +152,21 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, rep
                         }
                         Err(e) => { panic!("Error reading response: {}", e); }
                     }
-                    // println!("t2: {}", t2.elapsed().as_micros());
+                    // println!("client get read: {}", t2.elapsed().as_micros());
                 }
             }
             Put(_) => {
-                // println!("Put");
                 let key = get_key_from_dht_message(&request);
                 let which_nodes = get_which_nodes(&key, &num_nodes, &replication_degree);
+                let mut attempt = 0;
                 while !success {
+                    attempt += 1;
                     // Start phase one and send a request
                     // let t1 = Instant::now();
                     for node in &which_nodes {
-                        // serde_json::to_writer(&streams[*node], &request).unwrap();
                         write_dht_message_to_stream(&mut streams[*node], &request);
                     }
-                    // println!("t1: {}", t1.elapsed().as_micros());
+                    // println!("client put write: {}", t1.elapsed().as_micros());
 
                     // Receive acks from all the servers, abort if at least one sends RequestFailed
                     // TODO: Reading serially instead of in parallel may be a performance slowdown
@@ -161,32 +186,40 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, rep
                             Err(e) => { panic!("Error reading response: {}", e); }
                         }
                     }
-                    // println!("t2: {}", t2.elapsed().as_micros());
+                    // println!("client put read: {}", t2.elapsed().as_micros());
 
                     // Check the acks and start phase 2 if we received acks from all servers
                     // let t3 = Instant::now();
                     if acks.len() == which_nodes.len() {
                         // Send commit messages to all servers
                         for node in &which_nodes {
-                            // serde_json::to_writer(&streams[*node], &Commit).unwrap();
                             write_dht_message_to_stream(&mut streams[*node], &Commit);
+                        }
+                        for node in &which_nodes {
+                            match read_request_message_from_stream(&mut streams[*node]) {
+                                Ok(response) => {
+                                    match response {
+                                        Commit => {}
+                                        _ => { panic!("Expected Commit messages from all servers for put!"); }
+                                    }
+                                }
+                                Err(e) => { println!("Error reading commit from servers for put... {}", e); }
+                            }
                         }
                         success = true;
                     } else {
                         // Send abort messages to all servers who responded with an ack
                         // Note: Server-side, the request aborts if the server had a RequestFailed, so no need to send an abort to said servers
                         for node in acks {
-                            // serde_json::to_writer(&streams[node], &Abort).unwrap();
                             write_dht_message_to_stream(&mut streams[node], &Abort);
-
                         }
-                        sleep(Duration::new(0, 1000));
+                        // we do an exponential backoff to reduce contention for locks
+                        exponential_backoff(attempt, workload_config);
                     }
-                    // println!("t3: {}", t3.elapsed().as_micros());
+                    // println!("client write commit/abort: {}", t3.elapsed().as_micros());
                 }
             }
             MultiPut(puts) => {
-                // println!("Multiput");
                 // Send MultiPut to each server that only contains the Put commands relevant to that server
                 let mut server_multi_puts : HashMap<usize, Vec<PutRequest>> = HashMap::new();
                 for p in puts {
@@ -204,10 +237,11 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, rep
                 }
 
                 // Once we know which servers are needed and what is needed for each server, we send requests
+                let mut attempt = 0;
                 while !success {
+                    attempt += 1;
                     // First send the request to all servers
                     for node in &server_multi_puts {
-                        // serde_json::to_writer(&streams[*node.0], &MultiPut(node.1.clone())).unwrap();
                         write_dht_message_to_stream(&mut streams[*node.0], &MultiPut(node.1.clone()));
 
                     }
@@ -234,19 +268,29 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, rep
                     if acks.len() == server_multi_puts.len() {
                         // Send commit messages to all servers
                         for node in &server_multi_puts {
-                            // serde_json::to_writer(&streams[*node.0], &Commit).unwrap();
                             write_dht_message_to_stream(&mut streams[*node.0], &Commit);
 
+                        }
+                        for node in &server_multi_puts {
+                            match read_request_message_from_stream(&mut streams[*node.0]) {
+                                Ok(response) => {
+                                    match response {
+                                        Commit => {}
+                                        _ => { panic!("Expected Commit messages from all servers for multiput!"); }
+                                    }
+                                }
+                                Err(e) => { println!("Error reading commit from servers for multiput... {}", e); }
+                            }
                         }
                         success = true;
                     } else {
                         // Send abort messages to all servers who responded with an ack
                         // Note: Server-side, the request aborts if the server had a RequestFailed, so no need to send an abort to said servers
                         for node in acks {
-                            // serde_json::to_writer(&streams[node], &Commit).unwrap();
                             write_dht_message_to_stream(&mut streams[node], &Abort);
                         }
-                        sleep(Duration::new(0, 1000));
+                        // we do an exponential backoff to reduce contention for locks
+                        exponential_backoff(attempt, workload_config);
                     }
                 }
             }
@@ -277,7 +321,7 @@ fn client_process(thread_num: &usize, properties: &Properties) {
 
     // Make requests to the appropriate server
     println!("Sending requests for client thread {}...", thread_num);
-    send_requests(requests, streams, &properties.replication_degree);
+    send_requests(requests, streams, &properties.num_client_threads, &(properties.key_range[1]-properties.key_range[0]), &properties.replication_degree);
     println!("Client thread {} terminated.", thread_num);
 }
 
