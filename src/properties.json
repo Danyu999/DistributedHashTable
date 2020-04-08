@@ -4,9 +4,9 @@
   "server_port": 3333,
   "server_client_check_port": 2222,
   "dht_num_threads": 6,
-  "key_range": [0,10],
+  "key_range": [0,10000],
   "num_requests": 10000,
   "num_client_threads": 8,
-  "replication_degree": 1,
+  "replication_degree": 2,
   "multi_put_num": 3
 }

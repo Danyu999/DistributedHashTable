@@ -1,9 +1,10 @@
 # Results
 ##### Overview
 * DHT was run on 5 AWS EC2 instances. The instance type was t2.xlarge, which has 4 vCPUs, 16 GiB memory and "Moderate" 
-    (~300-900Mb/s) network performance. All instances were hosted in the same region, us-east-1a.
+    (~300-900Mb/s) network performance. All instances were hosted in the same region, us-east-1a. Testing was done with
+    5 nodes, 8 client threads per node, and 10000 operations per client thread.
 
-##### Observations/Notes
+##### Interesting Observations/Notes
 * Implemented MultiPut in a scalable way. You can modify how many puts you want to do in one multi-put in the properties
     file. Interesting to implement, ended up using a recursive function to acquire the necessary locks.
     
@@ -25,3 +26,5 @@
 ![Latency](DHT_Average_Latency_with_5_Nodes.png)
 
 ![Throughput](DHT_Average_Throughput_with_5_Nodes.png)
+
+![Failed Requests](DHT_Average_Failed_Requests_with_5_Nodes.png)
