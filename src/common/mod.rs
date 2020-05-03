@@ -7,6 +7,7 @@ pub mod net;
 pub mod properties;
 pub mod metrics;
 pub mod threadpool;
+pub mod logger;
 
 // Hash function to hash the keys. Each DefaultHasher created with new is guaranteed to be the same as others
 pub fn my_hash<T>(obj: T) -> u64 where T: Hash, {

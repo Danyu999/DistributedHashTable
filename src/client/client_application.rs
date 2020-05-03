@@ -10,14 +10,17 @@ use std::thread;
  use std::thread::sleep;
  use std::time::Duration;
  use std::cmp::{min, max};
+ use mylib::common::logger::Log;
+ use std::sync::{Arc, Mutex};
 
  // Generates and returns num_requests number of Get/Put requests randomly within the given key_range
-fn generate_requests(num_requests: &u64, key_range: &Vec<usize>, multi_put_num: &usize) -> Vec<DHTMessage> {
+fn generate_requests(num_requests: &u64, key_range: &Vec<usize>, multi_put_num: &usize, thread_num: &usize) -> Vec<DHTMessage> {
     assert_eq!(2, key_range.len());
     let mut requests: Vec<DHTMessage> = Vec::new();
     let mut rng = rand::thread_rng();
     let request_type_range = Uniform::from(0..5);
     let key_range_distribution = Uniform::from(key_range[0]..(key_range[1]));
+    let mut request_id : usize = thread_num * (key_range[1] - key_range[0]); //Unique request_id for each request (for logging)
     // println!("Generating requests!");
     for _ in 0..*num_requests {
 
@@ -25,7 +28,7 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<usize>, multi_put_num: 
             //Get
             0 | 1 | 2 => {
                 let key= key_range_distribution.sample(&mut rng);
-                requests.push(Get(key.to_string()));
+                requests.push(Get(key.to_string(), request_id.clone()));
             }
             //Put
             3 => {
@@ -33,7 +36,7 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<usize>, multi_put_num: 
                 requests.push(Put(PutRequest {
                                             key: key.to_string(),
                                             val: rng.sample_iter(&Alphanumeric).take(30).collect()
-                                        }));
+                                        }, request_id.clone()));
             }
             //MultiPut
             4 | _ => {
@@ -46,9 +49,11 @@ fn generate_requests(num_requests: &u64, key_range: &Vec<usize>, multi_put_num: 
                         val: rng.sample_iter(&Alphanumeric).take(30).collect()
                     });
                 }
-                requests.push(MultiPut(multi_put));
+                requests.push(MultiPut(multi_put, request_id.clone()));
             }
         }
+
+        request_id += 1;
     }
     return requests;
 }
@@ -116,7 +121,7 @@ fn get_which_nodes(key: &String, num_nodes: &usize, replication_degree: &usize) 
 }
 
 // Sends the requests to the appropriate server(s) one by one
-fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _num_client_threads: &usize, key_range: &usize, replication_degree: &usize) {
+fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _num_client_threads: &usize, key_range: &usize, replication_degree: &usize, logger: Arc<Mutex<Log>>) {
     let num_nodes = streams.len();
     // let workload_config = num_client_threads * num_nodes * requests.len() * replication_degree;
     let workload_config : u128 = (*key_range as f64).log10() as u128; //10 -> 1, 100 -> 2, 1000 -> 3, 10000 -> 4
@@ -124,11 +129,10 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
         // let start_operation: Instant = Instant::now();
         let request = requests.pop().unwrap();
         let mut success = false;
-        // println!();
 
         // Handle making the request, depending on the type of request
-        match request {
-            Get(_) => {
+        match &request {
+            Get(_, _) => {
                 let key = get_key_from_dht_message(&request);
                 let which_nodes = get_which_nodes(&key, &num_nodes, &replication_degree);
                 let mut node_index : usize = 0;
@@ -155,7 +159,10 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
                     // println!("client get read: {}", t2.elapsed().as_micros());
                 }
             }
-            Put(_) => {
+            Put(_, _) => {
+                //Log the message (We use curly braces here so that the lock is released right after this log)
+                { logger.lock().unwrap().request_log(&request); }
+
                 let key = get_key_from_dht_message(&request);
                 let which_nodes = get_which_nodes(&key, &num_nodes, &replication_degree);
                 let mut attempt = 0;
@@ -169,7 +176,6 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
                     // println!("client put write: {}", t1.elapsed().as_micros());
 
                     // Receive acks from all the servers, abort if at least one sends RequestFailed
-                    // TODO: Reading serially instead of in parallel may be a performance slowdown
                     let mut acks: Vec<usize> = Vec::with_capacity(which_nodes.len());
                     // let t2 = Instant::now();
                     for node in &which_nodes {
@@ -191,6 +197,9 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
                     // Check the acks and start phase 2 if we received acks from all servers
                     // let t3 = Instant::now();
                     if acks.len() == which_nodes.len() {
+                        //Log the commit decision before sending commit messages
+                        { logger.lock().unwrap().commit_log(&request); }
+
                         // Send commit messages to all servers
                         for node in &which_nodes {
                             write_dht_message_to_stream(&mut streams[*node], &Commit);
@@ -208,6 +217,9 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
                         }
                         success = true;
                     } else {
+                        //Log the abort decision before sending abort messages
+                        { logger.lock().unwrap().abort_log(&request); }
+
                         // Send abort messages to all servers who responded with an ack
                         // Note: Server-side, the request aborts if the server had a RequestFailed, so no need to send an abort to said servers
                         for node in acks {
@@ -219,7 +231,10 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
                     // println!("client write commit/abort: {}", t3.elapsed().as_micros());
                 }
             }
-            MultiPut(puts) => {
+            MultiPut(puts, id) => {
+                //Log the message (We use curly braces here so that the lock is released right after this log)
+                { logger.lock().unwrap().request_log(&request); }
+
                 // Send MultiPut to each server that only contains the Put commands relevant to that server
                 let mut server_multi_puts : HashMap<usize, Vec<PutRequest>> = HashMap::new();
                 for p in puts {
@@ -242,7 +257,7 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
                     attempt += 1;
                     // First send the request to all servers
                     for node in &server_multi_puts {
-                        write_dht_message_to_stream(&mut streams[*node.0], &MultiPut(node.1.clone()));
+                        write_dht_message_to_stream(&mut streams[*node.0], &MultiPut(node.1.clone(), id.clone()));
 
                     }
 
@@ -266,6 +281,9 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
 
                     // Check the acks and start phase 2 if we received acks from all servers
                     if acks.len() == server_multi_puts.len() {
+                        //Log the commit decision before sending commit messages
+                        { logger.lock().unwrap().commit_log(&request); }
+
                         // Send commit messages to all servers
                         for node in &server_multi_puts {
                             write_dht_message_to_stream(&mut streams[*node.0], &Commit);
@@ -284,6 +302,9 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
                         }
                         success = true;
                     } else {
+                        //Log the abort decision before sending abort messages
+                        { logger.lock().unwrap().abort_log(&request); }
+
                         // Send abort messages to all servers who responded with an ack
                         // Note: Server-side, the request aborts if the server had a RequestFailed, so no need to send an abort to said servers
                         for node in acks {
@@ -302,9 +323,9 @@ fn send_requests(mut requests: Vec<DHTMessage>, mut streams: Vec<TcpStream>, _nu
 }
 
 //handles client application work
-fn client_process(thread_num: &usize, properties: &Properties) {
+fn client_process(thread_num: &usize, properties: &Properties, logger: Arc<Mutex<Log>>) {
     // Generate num_requests number of requests randomly
-    let requests = generate_requests(&properties.num_requests, &properties.key_range, &properties.multi_put_num);
+    let requests = generate_requests(&properties.num_requests, &properties.key_range, &properties.multi_put_num, &thread_num);
     // let mut requests = Vec::new();
     // let mut multi_put : Vec<PutRequest> = Vec::new();
     // for i in 0..properties.multi_put_num {
@@ -321,7 +342,7 @@ fn client_process(thread_num: &usize, properties: &Properties) {
 
     // Make requests to the appropriate server
     println!("Sending requests for client thread {}...", thread_num);
-    send_requests(requests, streams, &properties.num_client_threads, &(properties.key_range[1]-properties.key_range[0]), &properties.replication_degree);
+    send_requests(requests, streams, &properties.num_client_threads, &(properties.key_range[1]-properties.key_range[0]), &properties.replication_degree, logger);
     println!("Client thread {} terminated.", thread_num);
 }
 
@@ -331,12 +352,16 @@ fn main() {
     // Does the distributed barrier, ensuring all servers are up and ready before continuing
     confirm_distributed_barrier_client(&properties.server_client_check_port, &properties.node_ips);
 
+    // Get the logger file for the client
+    let logger : Arc<Mutex<Log>> = Arc::new(Mutex::new(Log::client_new()));
+
     // Spawns num_client_threads number of threads to make client requests. The main thread then waits for all spawned threads to finish
     let mut join_handles: Vec<thread::JoinHandle<_>> = Vec::new();
     for i in 0..properties.num_client_threads {
         let properties_copy = properties.clone();
         let thread_num = i.clone();
-        join_handles.push(thread::spawn(move || { client_process(&thread_num, &properties_copy) }) );
+        let logger_copy = logger.clone();
+        join_handles.push(thread::spawn(move || { client_process(&thread_num, &properties_copy, logger_copy) }) );
     }
 
     for join_handle in join_handles {

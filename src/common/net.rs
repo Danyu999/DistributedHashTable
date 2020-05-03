@@ -32,9 +32,9 @@ impl Clone for PutRequest {
 
 #[derive(Serialize, Deserialize)]
 pub enum DHTMessage {
-    Get(String), //(key)
-    Put(PutRequest), //(key, content)
-    MultiPut(Vec<PutRequest>),
+    Get(String, usize), //(key, id)
+    Put(PutRequest, usize), //(key, content, id)
+    MultiPut(Vec<PutRequest>, usize),
     PhaseOneAck,
     Commit,
     Abort,
@@ -47,9 +47,9 @@ pub enum DHTMessage {
 impl Display for DHTMessage {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            DHTMessage::Get(_) => { write!(f, "Get") }
-            DHTMessage::Put(_) => {write!(f, "Put")}
-            DHTMessage::MultiPut(_) => {write!(f, "MultiPut")}
+            DHTMessage::Get(_, _) => { write!(f, "Get") }
+            DHTMessage::Put(_, _) => {write!(f, "Put")}
+            DHTMessage::MultiPut(_, _) => {write!(f, "MultiPut")}
             DHTMessage::PhaseOneAck => {write!(f, "PhaseOneAck")}
             DHTMessage::Commit => {write!(f, "Commit")}
             DHTMessage::Abort => {write!(f, "Abort")}
@@ -63,10 +63,10 @@ impl Display for DHTMessage {
 
 pub fn get_key_from_dht_message(msg: &DHTMessage) -> String {
     match msg {
-        Get(key) => {
+        Get(key, _) => {
             key.clone()
         },
-        Put(p) => {
+        Put(p, _) => {
             p.key.clone()
         },
         _ => { panic!("expected Get or Put type message") }
