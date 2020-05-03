@@ -1,7 +1,7 @@
 # DistributedHashTable (DHT)
 
 ### About
-* Assignment 1 for CSE 403 (Advanced Operating Systems)
+* Project for CSE 403 (Advanced Operating Systems)
 * Author: Dan Yu (Student at Lehigh University)
 
 ##### Description:
@@ -11,6 +11,9 @@ settings defined in the src/properties.json file. Clients and servers are linked
 assumed that each client runs on the same machine as exactly one other server and vice versa.
 The client generates random get/put requests and uses a hash function to decide which server
 to request from.
+* The DHT also is replicated, where each key/value pair is replicated on some number of servers. 
+* Two phase locking is used.
+* Logging is done such that it is possible for the system to recover from failures/crashes correctly.
 
 ##### Specifications:
 * Both servers and client use a distributed barrier, where they don't do anything until they 
